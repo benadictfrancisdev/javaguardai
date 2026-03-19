@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Premain-Class: ai.frameworkguard.FrameworkGuardAgent
+Agent-Class: ai.frameworkguard.FrameworkGuardAgent
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
