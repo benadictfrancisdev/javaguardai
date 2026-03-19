@@ -4,8 +4,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
 from core.database import supabase
-from routers.auth import get_current_customer
-from routers.incidents import validate_api_key
+from core.auth import get_current_customer, validate_api_key
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -15,9 +14,9 @@ class MetricsReport(BaseModel):
     heap_used_mb: float
     heap_max_mb: float
     thread_count: int
-    gc_count: int
-    jvm_uptime_ms: int
-    timestamp: str
+    gc_count: int = 0
+    jvm_uptime_ms: int = 0
+    timestamp: Optional[str] = None
 
 
 class MetricsEntry(BaseModel):
@@ -28,7 +27,7 @@ class MetricsEntry(BaseModel):
     thread_count: int
     gc_count: int
     jvm_uptime_ms: int
-    timestamp: str
+    timestamp: Optional[str] = None
     created_at: str
 
 
@@ -49,12 +48,12 @@ class MetricsSummary(BaseModel):
 async def report_metrics(data: MetricsReport):
     """
     Accept JVM metrics from monitored applications.
-    Validates API key and stores metrics.
+    Uses API key authentication (for SDK integration).
     """
-    # Validate API key
     customer = validate_api_key(data.api_key)
     
     metrics_id = str(uuid.uuid4())
+    timestamp = data.timestamp or datetime.now(timezone.utc).isoformat()
     
     metrics_data = {
         'id': metrics_id,
@@ -64,11 +63,10 @@ async def report_metrics(data: MetricsReport):
         'thread_count': data.thread_count,
         'gc_count': data.gc_count,
         'jvm_uptime_ms': data.jvm_uptime_ms,
-        'timestamp': data.timestamp,
+        'timestamp': timestamp,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     
-    # Store metrics
     result = supabase.table('metrics').insert(metrics_data).execute()
     
     if not result.data:
@@ -92,13 +90,13 @@ async def get_latest_metrics(
         metrics.append(MetricsEntry(
             id=row['id'],
             customer_id=row['customer_id'],
-            heap_used_mb=row['heap_used_mb'],
-            heap_max_mb=row['heap_max_mb'],
-            thread_count=row['thread_count'],
-            gc_count=row['gc_count'],
-            jvm_uptime_ms=row['jvm_uptime_ms'],
-            timestamp=row['timestamp'],
-            created_at=row['created_at']
+            heap_used_mb=row.get('heap_used_mb', 0),
+            heap_max_mb=row.get('heap_max_mb', 0),
+            thread_count=row.get('thread_count', 0),
+            gc_count=row.get('gc_count', 0),
+            jvm_uptime_ms=row.get('jvm_uptime_ms', 0),
+            timestamp=row.get('timestamp'),
+            created_at=row.get('created_at', '')
         ))
     
     # Reverse to get chronological order
@@ -131,11 +129,13 @@ async def get_metrics_summary(
     total_gc = 0
     
     for row in result.data:
-        if row['heap_max_mb'] > 0:
-            heap_percent = (row['heap_used_mb'] / row['heap_max_mb']) * 100
+        heap_max = row.get('heap_max_mb', 0)
+        heap_used = row.get('heap_used_mb', 0)
+        if heap_max > 0:
+            heap_percent = (heap_used / heap_max) * 100
             heap_percents.append(heap_percent)
-        thread_counts.append(row['thread_count'])
-        total_gc += row['gc_count']
+        thread_counts.append(row.get('thread_count', 0))
+        total_gc += row.get('gc_count', 0)
     
     return MetricsSummary(
         avg_heap_percent=sum(heap_percents) / len(heap_percents) if heap_percents else 0,
