@@ -117,3 +117,52 @@ Build a full-stack AI production monitoring app called FrameworkGuard AI with:
 - `traces_sample_rate=0.1` (10% sampling)
 - `before_send` filter: redacts emails and phone numbers
 - Environment tag: `development` or `production`
+
+## Update: March 2026 - Docker & Deployment Configuration
+
+### Docker Configuration
+
+#### Backend Dockerfile (`backend/Dockerfile`)
+- Python 3.11-slim base image
+- Non-root user for security
+- Health check with curl
+- Port 8000 exposed
+
+#### Frontend Dockerfile (`frontend/Dockerfile`)
+- Multi-stage build (Node 20 → Nginx Alpine)
+- Custom nginx.conf for SPA routing
+- Gzip compression enabled
+- Port 80 exposed
+
+#### docker-compose.yml
+- **backend**: FastAPI on port 8000
+- **frontend**: Nginx on port 3000
+- **redis**: Redis 7 Alpine on port 6379
+- **celery_worker**: Background task processing
+- **celery_beat**: Scheduled tasks (optional)
+
+### Health Check Module (`backend/health.py`)
+
+Endpoints:
+- `GET /api/health` - Comprehensive health check
+- `GET /api/health/live` - Kubernetes liveness probe
+- `GET /api/health/ready` - Kubernetes readiness probe
+
+Response includes:
+- Database connection status
+- Redis connection status
+- Claude API availability
+- Slack webhook configuration
+- Version and timestamp
+
+### Documentation
+
+- `README.md` - Complete setup guide with:
+  - Quick start with Docker
+  - Java agent integration (SDK, JVM agent, cURL)
+  - Local development instructions
+  - API reference table
+  - Troubleshooting guide
+  - Kubernetes deployment config
+
+- `.env.example` - Template with all environment variables documented

@@ -15,6 +15,7 @@ load_dotenv(Path(__file__).parent / '.env')
 
 from core.config import settings
 from routers import auth, incidents, metrics
+import health
 
 # Configure logging
 logging.basicConfig(
@@ -133,6 +134,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api")
 app.include_router(incidents.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
+app.include_router(health.router, prefix="/api")
 
 
 @app.get("/api/health")
