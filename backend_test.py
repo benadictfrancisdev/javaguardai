@@ -115,11 +115,26 @@ class FrameworkGuardAPITester:
             data=registration_data
         )
         
-        if success and response.get("api_key"):
-            self.api_key = response.get("api_key")
-            self.customer_data = response
-            self.log(f"✅ Registration successful - API Key: {self.api_key[:20]}...")
-            return True
+        if success:
+            self.log(f"Registration response: {json.dumps(response, indent=2)}")
+            customer_info = response.get("customer", {})
+            if customer_info.get("api_key"):
+                self.api_key = customer_info.get("api_key")
+                self.customer_data = {
+                    "email": customer_info.get("email"),
+                    "id": customer_info.get("id"),
+                    "api_key": self.api_key
+                }
+                self.log(f"✅ Registration successful - API Key: {self.api_key[:20]}...")
+                return True
+            elif response.get("api_key"):
+                self.api_key = response.get("api_key") 
+                self.customer_data = response
+                self.log(f"✅ Registration successful - API Key: {self.api_key[:20]}...")
+                return True
+            else:
+                self.log("❌ Registration failed - no API key in response")
+                return False
         else:
             self.log("❌ Registration failed")
             return False
