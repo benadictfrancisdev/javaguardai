@@ -14,5 +14,6 @@ class Settings:
     SENTRY_DSN: str = os.environ.get('SENTRY_DSN', '')
     SLACK_WEBHOOK_URL: str = os.environ.get('SLACK_WEBHOOK_URL', '')
     CORS_ORIGINS: str = os.environ.get('CORS_ORIGINS', '*')
+    ENVIRONMENT: str = os.environ.get('ENV', 'development')
 
 settings = Settings()

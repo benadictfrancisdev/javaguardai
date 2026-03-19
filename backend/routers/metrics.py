@@ -1,12 +1,14 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timezone
 import uuid
+import logging
 from core.database import supabase
 from core.auth import get_current_customer, validate_api_key
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
+logger = logging.getLogger(__name__)
 
 
 class MetricsReport(BaseModel):
@@ -44,20 +46,33 @@ class MetricsSummary(BaseModel):
     data_points: int
 
 
+def log_request(customer_id: str, endpoint: str, response_code: int):
+    """Log every request with customer context for audit trail."""
+    logger.info(f"REQUEST | customer_id={customer_id} | endpoint={endpoint} | status={response_code} | timestamp={datetime.now(timezone.utc).isoformat()}")
+
+
 @router.post("")
-async def report_metrics(data: MetricsReport):
+async def report_metrics(data: MetricsReport, request: Request):
     """
     Accept JVM metrics from monitored applications.
     Uses API key authentication (for SDK integration).
     """
     customer = validate_api_key(data.api_key)
+    customer_id = customer['id']
     
     metrics_id = str(uuid.uuid4())
     timestamp = data.timestamp or datetime.now(timezone.utc).isoformat()
     
+    # Calculate heap percentage for alerting
+    heap_percent = (data.heap_used_mb / data.heap_max_mb * 100) if data.heap_max_mb > 0 else 0
+    
+    # Log high heap alert
+    if heap_percent > 95:
+        logger.warning(f"HIGH HEAP ALERT | customer_id={customer_id} | heap_percent={heap_percent:.1f}% | heap_used={data.heap_used_mb}MB")
+    
     metrics_data = {
         'id': metrics_id,
-        'customer_id': customer['id'],
+        'customer_id': customer_id,  # SECURITY: Always set customer_id
         'heap_used_mb': data.heap_used_mb,
         'heap_max_mb': data.heap_max_mb,
         'thread_count': data.thread_count,
@@ -70,8 +85,10 @@ async def report_metrics(data: MetricsReport):
     result = supabase.table('metrics').insert(metrics_data).execute()
     
     if not result.data:
+        log_request(customer_id, "POST /metrics", 500)
         raise HTTPException(status_code=500, detail="Failed to store metrics")
     
+    log_request(customer_id, "POST /metrics", 200)
     return {"received": True, "id": metrics_id}
 
 
@@ -80,13 +97,27 @@ async def get_latest_metrics(
     limit: int = 60,
     customer: dict = Depends(get_current_customer)
 ):
-    """Get the last N metrics entries for the authenticated customer."""
+    """
+    Get the last N metrics entries for the authenticated customer.
+    SECURITY: Always filters by customer_id - defense in depth.
+    """
+    customer_id = customer['id']
+    
+    # Cap limit at 60
+    limit = min(limit, 60)
+    
+    # SECURITY: ALWAYS filter by customer_id - never query without it
     result = supabase.table('metrics').select('*').eq(
-        'customer_id', customer['id']
+        'customer_id', customer_id
     ).order('created_at', desc=True).limit(limit).execute()
     
     metrics = []
     for row in result.data:
+        # SECURITY: Double-check customer_id matches (defense in depth)
+        if row.get('customer_id') != customer_id:
+            logger.warning(f"SECURITY: Filtered out metric {row.get('id')} with mismatched customer_id")
+            continue
+            
         metrics.append(MetricsEntry(
             id=row['id'],
             customer_id=row['customer_id'],
@@ -102,6 +133,7 @@ async def get_latest_metrics(
     # Reverse to get chronological order
     metrics.reverse()
     
+    log_request(customer_id, "GET /metrics/latest", 200)
     return MetricsListResponse(metrics=metrics, total=len(metrics))
 
 
@@ -110,12 +142,19 @@ async def get_metrics_summary(
     hours: int = 24,
     customer: dict = Depends(get_current_customer)
 ):
-    """Get metrics summary for the last N hours."""
+    """
+    Get metrics summary for the last N hours.
+    SECURITY: Always filters by customer_id.
+    """
+    customer_id = customer['id']
+    
+    # SECURITY: ALWAYS filter by customer_id
     result = supabase.table('metrics').select('*').eq(
-        'customer_id', customer['id']
+        'customer_id', customer_id
     ).order('created_at', desc=True).limit(1000).execute()
     
     if not result.data:
+        log_request(customer_id, "GET /metrics/summary", 200)
         return MetricsSummary(
             avg_heap_percent=0,
             max_heap_percent=0,
@@ -129,6 +168,10 @@ async def get_metrics_summary(
     total_gc = 0
     
     for row in result.data:
+        # SECURITY: Verify customer_id matches
+        if row.get('customer_id') != customer_id:
+            continue
+            
         heap_max = row.get('heap_max_mb', 0)
         heap_used = row.get('heap_used_mb', 0)
         if heap_max > 0:
@@ -137,6 +180,7 @@ async def get_metrics_summary(
         thread_counts.append(row.get('thread_count', 0))
         total_gc += row.get('gc_count', 0)
     
+    log_request(customer_id, "GET /metrics/summary", 200)
     return MetricsSummary(
         avg_heap_percent=sum(heap_percents) / len(heap_percents) if heap_percents else 0,
         max_heap_percent=max(heap_percents) if heap_percents else 0,

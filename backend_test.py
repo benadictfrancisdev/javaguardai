@@ -22,6 +22,10 @@ class FrameworkGuardAPITester:
         self.tests_passed = 0
         self.failed_tests = []
         
+        # Test credentials from review request
+        self.test_user_token = "bc1ee4da-cea3-4eb6-88f3-ba23fe523477"
+        self.test_api_key = "fg_3254cefbdcb5a3471a7d83952d99a29625d3f7a3dacc5c1e"
+        
     def log(self, message: str, level: str = "INFO"):
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] {level}: {message}")
@@ -303,6 +307,163 @@ class FrameworkGuardAPITester:
             self.log("❌ Get latest metrics failed")
             return False
     
+    def test_get_incident_stats(self) -> bool:
+        """Test getting incident statistics"""
+        if not self.session_token:
+            self.log("❌ Cannot test incident stats - no session token")
+            return False
+            
+        self.log("=== Testing Get Incident Stats ===")
+        
+        success, response = self.run_test(
+            "Get Incident Stats",
+            "GET",
+            "/api/incidents/stats",
+            200
+        )
+        
+        if success:
+            required_fields = ['total_today', 'total_week', 'critical_count', 'avg_risk_score', 'hours_saved_estimate']
+            all_fields_present = all(field in response for field in required_fields)
+            
+            if all_fields_present:
+                self.log(f"✅ Incident stats retrieved successfully")
+                self.log(f"   Total today: {response.get('total_today')}")
+                self.log(f"   Total week: {response.get('total_week')}")
+                self.log(f"   Critical count: {response.get('critical_count')}")
+                self.log(f"   Avg risk score: {response.get('avg_risk_score')}")
+                self.log(f"   Hours saved estimate: {response.get('hours_saved_estimate')}")
+                return True
+            else:
+                missing_fields = [field for field in required_fields if field not in response]
+                self.log(f"❌ Missing required fields in stats response: {missing_fields}")
+                return False
+        else:
+            self.log("❌ Get incident stats failed")
+            return False
+    
+    def test_api_key_validation(self) -> bool:
+        """Test API key validation by using invalid key"""
+        self.log("=== Testing API Key Validation ===")
+        
+        invalid_exception_data = {
+            "api_key": "invalid_key_12345",
+            "exception_class": "java.lang.RuntimeException",
+            "message": "Test exception for invalid API key",
+            "stack_trace": "java.lang.RuntimeException: Test\n\tat com.test.Main.main(Main.java:10)",
+            "heap_used_mb": 100.0,
+            "thread_count": 5,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        success, response = self.run_test(
+            "Invalid API Key Test",
+            "POST",
+            "/api/exceptions",
+            401,  # Expecting 401 for invalid API key
+            data=invalid_exception_data
+        )
+        
+        if success:
+            self.log("✅ API key validation works - correctly rejected invalid key")
+            return True
+        else:
+            self.log("❌ API key validation failed - should have returned 401")
+            return False
+    
+    def test_with_provided_credentials(self) -> bool:
+        """Test using provided test credentials from review request"""
+        self.log("=== Testing with Provided Test Credentials ===")
+        
+        # Use provided token and API key
+        self.session_token = self.test_user_token
+        self.api_key = self.test_api_key
+        
+        # Test incident stats with provided credentials
+        success, response = self.run_test(
+            "Incident Stats with Test Token",
+            "GET",
+            "/api/incidents/stats",
+            200
+        )
+        
+        if success:
+            self.log("✅ Test credentials working for incident stats")
+            required_fields = ['total_today', 'total_week', 'critical_count', 'avg_risk_score', 'hours_saved_estimate']
+            has_hours_saved = 'hours_saved_estimate' in response
+            
+            if has_hours_saved:
+                self.log(f"✅ hours_saved_estimate field present: {response.get('hours_saved_estimate')}")
+            else:
+                self.log("❌ hours_saved_estimate field missing from response")
+                
+            return success and has_hours_saved
+        else:
+            self.log("❌ Test credentials failed")
+            return False
+    
+    def test_exception_with_customer_id(self) -> str:
+        """Test exception reporting with customer_id validation"""
+        if not self.api_key:
+            self.log("❌ Cannot test exception with customer_id - no API key")
+            return None
+            
+        self.log("=== Testing Exception Reporting with Customer ID ===")
+        
+        exception_data = {
+            "api_key": self.test_api_key,  # Use test API key
+            "exception_class": "java.lang.NullPointerException", 
+            "message": "Cannot invoke method on null object",
+            "stack_trace": "java.lang.NullPointerException: Cannot invoke method on null object\n\tat com.frameworkguard.Service.process(Service.java:42)\n\tat com.frameworkguard.Controller.handle(Controller.java:28)",
+            "heap_used_mb": 750.2,
+            "thread_count": 30,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        success, response = self.run_test(
+            "Exception Reporting with Customer ID",
+            "POST",
+            "/api/exceptions",
+            200,
+            data=exception_data
+        )
+        
+    def test_multi_tenant_security(self) -> bool:
+        """Test that users can only see their own incidents (multi-tenant security)"""
+        if not self.session_token:
+            self.log("❌ Cannot test multi-tenant security - no session token")
+            return False
+            
+        self.log("=== Testing Multi-Tenant Security ===")
+        
+        # Get incidents for the current user
+        success, response = self.run_test(
+            "Multi-tenant Security Check",
+            "GET",
+            "/api/incidents",
+            200
+        )
+        
+        if success and "incidents" in response:
+            incidents = response.get("incidents", [])
+            customer_id = self.customer_data.get("id") if self.customer_data else None
+            
+            # Check that all incidents have the correct customer_id
+            mismatched_incidents = []
+            for incident in incidents:
+                if incident.get("customer_id") != customer_id:
+                    mismatched_incidents.append(incident.get("id"))
+            
+            if len(mismatched_incidents) == 0:
+                self.log("✅ Multi-tenant security working - all incidents belong to current customer")
+                return True
+            else:
+                self.log(f"❌ Multi-tenant security failed - found {len(mismatched_incidents)} incidents from other customers")
+                return False
+        else:
+            self.log("❌ Multi-tenant security test failed - couldn't retrieve incidents")
+            return False
+    
     def run_full_test_suite(self) -> Dict[str, Any]:
         """Run complete test suite and return results"""
         self.log("🚀 Starting FrameworkGuard AI Backend Test Suite")
@@ -335,6 +496,22 @@ class FrameworkGuardAPITester:
         
         # Test 8: Get latest metrics
         test_results['get_latest_metrics'] = self.test_get_latest_metrics()
+        
+        # Test 9: Test with provided credentials (NEW)
+        test_results['provided_credentials'] = self.test_with_provided_credentials()
+        
+        # Test 10: Exception with customer_id (NEW FEATURE)
+        incident_id2 = self.test_exception_with_customer_id()
+        test_results['exception_with_customer_id'] = incident_id2 is not None
+        
+        # Test 11: Get incident stats (NEW FEATURE)
+        test_results['incident_stats'] = self.test_get_incident_stats()
+        
+        # Test 12: API key validation (SECURITY FEATURE)
+        test_results['api_key_validation'] = self.test_api_key_validation()
+        
+        # Test 13: Multi-tenant security (SECURITY FEATURE)
+        test_results['multi_tenant_security'] = self.test_multi_tenant_security()
         
         end_time = time.time()
         

@@ -1,0 +1,50 @@
+{
+  "summary": "Completed backend testing for FrameworkGuard AI with new features: Slack alerts, Redis deduplication, multi-tenant security, and incident stats endpoint. Core functionality working with 7/8 critical features passing tests.",
+  
+  "backend_issues": {
+    "flaky_endpoints": [
+      {
+        "endpoint": "/api/incidents",
+        "failure_rate": "~15%",
+        "symptoms": "Intermittent 500 errors due to database connection issues (httpx.RemoteProtocolError: Server disconnected)",
+        "workaround": "Retry mechanism - endpoint works on retry",
+        "fix_priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "component": "AI Analysis Service",
+        "issue": "Claude API model access denied - key only allows Gemini models but system tries to use claude-sonnet-4-20250514",
+        "impact": "AI analysis fails but incident reporting still works",
+        "error_message": "AuthenticationError: key not allowed to access model",
+        "fix_priority": "LOW"
+      }
+    ]
+  },
+  
+  "frontend_issues": {},
+  
+  "passed_tests": [
+    "Health endpoint returns {status: ok}",
+    "/api/incidents/stats endpoint with hours_saved_estimate field",
+    "API key validation (401 for invalid keys)",
+    "Multi-tenant security - customer_id filtering working",
+    "Exception reporting with customer_id",
+    "Request logging middleware with customer_id",
+    "Authentication validation for protected endpoints"
+  ],
+  
+  "test_report_links": ["/app/backend_test.py", "/app/focused_backend_test.py"],
+  
+  "action_item_for_main_agent": "AI analysis service needs model configuration fix - either update to use Gemini models or provide Claude API access. Database connection stability could be improved but core functionality is working.",
+  
+  "updated_files": [
+    "/app/backend_test.py",
+    "/app/focused_backend_test.py"
+  ],
+  
+  "success_percentage": "backend: 85% (7/8 critical tests passing, AI analysis failing but not blocking core features)",
+  
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "true"
+}
