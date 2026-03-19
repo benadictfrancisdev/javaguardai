@@ -1,0 +1,18 @@
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).parent.parent
+load_dotenv(ROOT_DIR / '.env')
+
+class Settings:
+    SUPABASE_URL: str = os.environ.get('SUPABASE_URL', '')
+    SUPABASE_SERVICE_KEY: str = os.environ.get('SUPABASE_SERVICE_KEY', '')
+    SUPABASE_ANON_KEY: str = os.environ.get('SUPABASE_ANON_KEY', '')
+    EMERGENT_LLM_KEY: str = os.environ.get('EMERGENT_LLM_KEY', '')
+    REDIS_URL: str = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+    SENTRY_DSN: str = os.environ.get('SENTRY_DSN', '')
+    SLACK_WEBHOOK_URL: str = os.environ.get('SLACK_WEBHOOK_URL', '')
+    CORS_ORIGINS: str = os.environ.get('CORS_ORIGINS', '*')
+
+settings = Settings()
