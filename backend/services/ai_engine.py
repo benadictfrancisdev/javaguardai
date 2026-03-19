@@ -2,7 +2,7 @@ import json
 import hashlib
 import logging
 import re
-from typing import Optional, Tuple
+from typing import Optional
 import redis
 from core.database import supabase
 from core.config import settings
@@ -44,12 +44,10 @@ def compute_dedup_key(exception_class: str, stack_trace: str) -> str:
     Compute a deduplication key from exception class and stack trace.
     Extracts file name and line number from the first stack trace line.
     """
-    # Extract first meaningful stack trace line (file:line)
     file_line = ""
     if stack_trace:
         lines = stack_trace.strip().split('\n')
         for line in lines:
-            # Match patterns like (SomeFile.java:42) or at com.example.Class.method(File.java:123)
             match = re.search(r'\(([^:]+):(\d+)\)', line)
             if match:
                 file_line = f"{match.group(1)}:{match.group(2)}"
@@ -140,7 +138,7 @@ Timestamp: {incident.get('timestamp', 'Unknown')}
 """
             
             try:
-                # Call Claude API
+                # Call Claude API using Emergent LLM key
                 chat = LlmChat(
                     api_key=settings.EMERGENT_LLM_KEY,
                     session_id=f"incident-{incident_id}",
