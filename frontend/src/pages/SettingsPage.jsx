@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+
+const API_URL = process.env.REACT_APP_BACKEND_URL || 'https://javaguardai-production.up.railway.app';
 import { Label } from '../components/ui/label';
 import { Separator } from '../components/ui/separator';
 import { toast } from 'sonner';
@@ -45,7 +47,7 @@ export default function SettingsPage() {
     ? user?.api_key 
     : user?.api_key?.replace(/./g, '•').slice(0, 40) + '...';
 
-  const sampleException = `curl -X POST ${process.env.REACT_APP_BACKEND_URL}/api/exceptions \\
+  const sampleException = `curl -X POST ${API_URL}/api/exceptions \\
   -H "Content-Type: application/json" \\
   -d '{
     "api_key": "${user?.api_key || 'YOUR_API_KEY'}",
@@ -57,7 +59,7 @@ export default function SettingsPage() {
     "timestamp": "${new Date().toISOString()}"
   }'`;
 
-  const sampleMetrics = `curl -X POST ${process.env.REACT_APP_BACKEND_URL}/api/metrics \\
+  const sampleMetrics = `curl -X POST ${API_URL}/api/metrics \\
   -H "Content-Type: application/json" \\
   -d '{
     "api_key": "${user?.api_key || 'YOUR_API_KEY'}",
