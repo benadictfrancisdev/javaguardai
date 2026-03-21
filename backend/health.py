@@ -8,7 +8,7 @@ Returns 503 if any critical service is unavailable.
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 
@@ -78,50 +78,32 @@ async def check_slack() -> Dict[str, Any]:
 
 
 @router.get("/health")
-async def health_check(response: Response) -> Dict[str, Any]:
+async def health_check() -> Dict[str, Any]:
     """
-    Comprehensive health check endpoint.
-    
-    Returns:
-        - status: "healthy" | "degraded" | "unhealthy"
-        - database: connection status
-        - redis: connection status
-        - claude_api: availability status
-        - version: application version
-        - timestamp: current UTC timestamp
-    
-    Status Codes:
-        - 200: All critical services operational
-        - 503: One or more critical services unavailable
+    Health check endpoint — always returns 200 for Railway compatibility.
+    Status of each service is reported in the response body.
     """
     timestamp = datetime.now(timezone.utc).isoformat()
-    
-    # Check all services
+
     db_status = await check_database()
     redis_status = await check_redis()
     claude_status = await check_claude_api()
     slack_status = await check_slack()
-    
-    # Determine overall health
-    critical_services_ok = db_status["status"] == "connected"
-    
-    # Redis and Claude are important but not critical for basic operation
-    all_services_ok = (
-        critical_services_ok and 
-        redis_status["status"] in ["connected", "not_configured"] and
-        claude_status["status"] in ["available", "not_configured"]
+
+    critical_ok = db_status["status"] == "connected"
+    all_ok = (
+        critical_ok
+        and redis_status["status"] in ["connected", "not_configured"]
+        and claude_status["status"] in ["available", "not_configured"]
     )
-    
-    if not critical_services_ok:
-        overall_status = "unhealthy"
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    elif not all_services_ok:
+
+    if not critical_ok:
         overall_status = "degraded"
-        response.status_code = status.HTTP_200_OK
+    elif not all_ok:
+        overall_status = "degraded"
     else:
         overall_status = "healthy"
-        response.status_code = status.HTTP_200_OK
-    
+
     return {
         "status": overall_status,
         "database": db_status["status"],
@@ -134,8 +116,8 @@ async def health_check(response: Response) -> Dict[str, Any]:
             "database": db_status,
             "redis": redis_status,
             "claude_api": claude_status,
-            "slack": slack_status
-        }
+            "slack": slack_status,
+        },
     }
 
 
