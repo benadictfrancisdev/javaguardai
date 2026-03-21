@@ -8,7 +8,7 @@ Returns 503 if any critical service is unavailable.
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 
 logger = logging.getLogger(__name__)
 
