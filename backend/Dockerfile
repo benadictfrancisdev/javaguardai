@@ -23,11 +23,11 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Copy and install dependencies
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
 
-# Copy the rest of the application code
-COPY . .
+# Copy only the backend source into /app
+COPY backend/ .
 
 # Expose port (Railway overrides with $PORT)
 EXPOSE 8000
