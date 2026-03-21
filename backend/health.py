@@ -20,10 +20,13 @@ VERSION = "1.0.0"
 async def check_database() -> Dict[str, Any]:
     """Check Supabase database connection."""
     try:
-        from core.database import supabase
-        # Lightweight query to test connection
-        result = supabase.table('customers').select('id').limit(1).execute()
-        return {"status": "connected", "latency_ms": None}
+        from core.database import get_supabase_client
+        client = get_supabase_client()
+        client.table('customers').select('id').limit(1).execute()
+        return {"status": "connected"}
+    except RuntimeError as e:
+        logger.error(f"Database not configured: {e}")
+        return {"status": "not_configured", "error": str(e)}
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         return {"status": "disconnected", "error": str(e)}
