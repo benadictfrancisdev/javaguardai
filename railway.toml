@@ -1,5 +1,4 @@
 # Railway Deployment Configuration
-# This file tells Railway how to build and deploy the backend
 
 [build]
 builder = "DOCKERFILE"
@@ -7,6 +6,6 @@ dockerfilePath = "backend/Dockerfile"
 
 [deploy]
 healthcheckPath = "/api/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
