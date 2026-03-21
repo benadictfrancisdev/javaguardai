@@ -4,11 +4,10 @@ FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \ 
-    build-essential \ 
-    libffi-dev \ 
-    libssl-dev \ 
-    python3.11-dev \ 
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    libffi-dev \
+    libssl-dev \
     cargo && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
