@@ -8,7 +8,7 @@ from core.database import supabase
 from core.config import settings
 from services.risk_scorer import enhance_risk_score
 from services.alerts import send_slack_alert
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+import anthropic
 
 logger = logging.getLogger(__name__)
 
@@ -138,15 +138,15 @@ Timestamp: {incident.get('timestamp', 'Unknown')}
 """
             
             try:
-                # Call Claude API using Emergent LLM key
-                chat = LlmChat(
-                    api_key=settings.EMERGENT_LLM_KEY,
-                    session_id=f"incident-{incident_id}",
-                    system_message=SYSTEM_PROMPT
-                ).with_model("anthropic", "claude-sonnet-4-20250514")
-                
-                user_message = UserMessage(text=analysis_request)
-                response = await chat.send_message(user_message)
+                # Call Claude API using Anthropic SDK
+                client = anthropic.AsyncAnthropic(api_key=settings.EMERGENT_LLM_KEY)
+                message = await client.messages.create(
+                    model="claude-sonnet-4-20250514",
+                    max_tokens=1024,
+                    system=SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": analysis_request}]
+                )
+                response = message.content[0].text
                 
                 # Parse JSON response
                 response_text = response.strip()
