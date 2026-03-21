@@ -118,14 +118,16 @@ app = FastAPI(
 app.add_middleware(RequestLoggingMiddleware)
 
 # CORS configuration
-origins = settings.CORS_ORIGINS.split(',') if settings.CORS_ORIGINS != '*' else ['*']
-if '*' not in origins:
-    origins.extend(['http://localhost:3000', 'http://localhost:5173'])
+# CORS configuration
+cors_origins = settings.CORS_ORIGINS.split(',') if settings.CORS_ORIGINS != '*' else ['*']
+if '*' not in cors_origins:
+    cors_origins.extend(['http://localhost:3000', 'http://localhost:5173'])
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=origins,
+    allow_origins=cors_origins,
+    allow_origin_regex=r'https://.*\.vercel\.app',
     allow_methods=["*"],
     allow_headers=["*"],
 )

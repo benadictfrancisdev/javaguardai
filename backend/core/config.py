@@ -14,7 +14,10 @@ class Settings:
     REDIS_URL: str = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     SENTRY_DSN: str = os.environ.get('SENTRY_DSN', '')
     SLACK_WEBHOOK_URL: str = os.environ.get('SLACK_WEBHOOK_URL', '')
-    CORS_ORIGINS: str = os.environ.get('CORS_ORIGINS', '*')
+    CORS_ORIGINS: str = os.environ.get(
+        'CORS_ORIGINS',
+        'https://javaguardai.vercel.app,https://javaguardai-production.up.railway.app,http://localhost:3000,http://localhost:5173'
+    )
     ENVIRONMENT: str = os.environ.get('ENV', 'development')
 
 settings = Settings()
