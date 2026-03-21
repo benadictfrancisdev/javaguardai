@@ -138,8 +138,11 @@ Timestamp: {incident.get('timestamp', 'Unknown')}
 """
             
             try:
-                # Call Claude API using Anthropic SDK
-                client = anthropic.AsyncAnthropic(api_key=settings.EMERGENT_LLM_KEY)
+                # Call Claude API via Emergent LLM proxy
+                client = anthropic.AsyncAnthropic(
+                    api_key=settings.EMERGENT_LLM_KEY,
+                    base_url=settings.EMERGENT_BASE_URL
+                )
                 message = await client.messages.create(
                     model="claude-sonnet-4-20250514",
                     max_tokens=1024,
