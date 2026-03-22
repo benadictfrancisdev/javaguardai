@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / '.env')
 
 from core.config import settings
-from routers import auth, incidents, metrics
+from routers import auth, incidents, metrics, debug
 import health
 
 # Configure logging
@@ -117,19 +117,19 @@ app = FastAPI(
 # Add request logging middleware
 app.add_middleware(RequestLoggingMiddleware)
 
-# CORS configuration
-# CORS configuration
+# CORS — allow Vercel frontend + regex for all *.vercel.app preview URLs
 cors_origins = settings.CORS_ORIGINS.split(',') if settings.CORS_ORIGINS != '*' else ['*']
 if '*' not in cors_origins:
     cors_origins.extend(['http://localhost:3000', 'http://localhost:5173'])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
     allow_origins=cors_origins,
     allow_origin_regex=r'https://.*\.vercel\.app',
-    allow_methods=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include routers with /api prefix
@@ -137,6 +137,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(incidents.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
+app.include_router(debug.router, prefix="/api")
 
 
 @app.get("/api/health")
