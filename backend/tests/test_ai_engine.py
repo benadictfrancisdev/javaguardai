@@ -17,13 +17,13 @@ class TestAnalyseIncident:
         mock_message = MagicMock()
         mock_message.content = [MagicMock(text=mock_claude_response)]
 
-        with patch('services.ai_engine.supabase') as mock_supabase, \
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
+        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
+
+        with patch('services.ai_engine.supabase', mock_supabase), \
              patch('services.ai_engine.anthropic') as mock_anthropic, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            # Setup mocks
-            mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-            mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
             
             mock_client = AsyncMock()
             mock_client.messages.create = AsyncMock(return_value=mock_message)
@@ -45,12 +45,13 @@ class TestAnalyseIncident:
         mock_message = MagicMock()
         mock_message.content = [MagicMock(text=mock_claude_response)]
 
-        with patch('services.ai_engine.supabase') as mock_supabase, \
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
+        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
+
+        with patch('services.ai_engine.supabase', mock_supabase), \
              patch('services.ai_engine.anthropic') as mock_anthropic, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-            mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
             
             mock_client = AsyncMock()
             mock_client.messages.create = AsyncMock(return_value=mock_message)
@@ -72,12 +73,13 @@ class TestAnalyseIncident:
         mock_message = MagicMock()
         mock_message.content = [MagicMock(text=mock_claude_response)]
 
-        with patch('services.ai_engine.supabase') as mock_supabase, \
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
+        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
+
+        with patch('services.ai_engine.supabase', mock_supabase), \
              patch('services.ai_engine.anthropic') as mock_anthropic, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-            mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
             
             mock_client = AsyncMock()
             mock_client.messages.create = AsyncMock(return_value=mock_message)
@@ -111,12 +113,13 @@ class TestAnalyseIncident:
         mock_message = MagicMock()
         mock_message.content = [MagicMock(text=low_risk_response)]
 
-        with patch('services.ai_engine.supabase') as mock_supabase, \
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
+        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
+
+        with patch('services.ai_engine.supabase', mock_supabase), \
              patch('services.ai_engine.anthropic') as mock_anthropic, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-            mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
             
             mock_client = AsyncMock()
             mock_client.messages.create = AsyncMock(return_value=mock_message)
@@ -135,12 +138,13 @@ class TestAnalyseIncident:
         mock_message = MagicMock()
         mock_message.content = [MagicMock(text=mock_claude_response)]
 
-        with patch('services.ai_engine.supabase') as mock_supabase, \
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
+        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
+
+        with patch('services.ai_engine.supabase', mock_supabase), \
              patch('services.ai_engine.anthropic') as mock_anthropic, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-            mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
             
             mock_client = AsyncMock()
             mock_client.messages.create = AsyncMock(return_value=mock_message)
@@ -158,12 +162,13 @@ class TestAnalyseIncident:
         """Test that deduplication returns cached result on second call."""
         cached_analysis = json.loads(mock_claude_response)
         
-        with patch('services.ai_engine.supabase') as mock_supabase, \
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
+        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
+
+        with patch('services.ai_engine.supabase', mock_supabase), \
              patch('services.ai_engine.redis_client') as mock_redis, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-            mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
             
             # Simulate cache hit
             mock_redis.get.return_value = json.dumps(cached_analysis)
@@ -178,13 +183,14 @@ class TestAnalyseIncident:
     @pytest.mark.asyncio
     async def test_claude_api_error_uses_fallback(self, test_incident):
         """Test that Claude API error triggers fallback with original error data."""
-        with patch('services.ai_engine.supabase') as mock_supabase, \
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
+        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
+
+        with patch('services.ai_engine.supabase', mock_supabase), \
              patch('services.ai_engine.anthropic') as mock_anthropic, \
              patch('services.ai_engine.redis_client', None), \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-            mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
             
             # Simulate Claude API error
             mock_client = AsyncMock()
@@ -208,13 +214,14 @@ class TestAnalyseIncident:
     @pytest.mark.asyncio
     async def test_timeout_uses_fallback(self, test_incident):
         """Test that AI timeout triggers fallback with original error data."""
-        with patch('services.ai_engine.supabase') as mock_supabase, \
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
+        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
+
+        with patch('services.ai_engine.supabase', mock_supabase), \
              patch('services.ai_engine.anthropic') as mock_anthropic, \
              patch('services.ai_engine.redis_client', None), \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-            mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
             
             # Simulate timeout
             mock_client = AsyncMock()
