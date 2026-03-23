@@ -268,6 +268,6 @@ Timestamp: {incident.get('timestamp', 'Unknown')}
                 'status': 'analysis_failed',
                 'analysis': {"error": str(e)}
             }).eq('id', incident_id).execute()
-        except:
+        except Exception:
             pass
         return {"error": str(e), "status": "analysis_failed"}

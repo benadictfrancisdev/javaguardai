@@ -1,6 +1,5 @@
 import httpx
 import logging
-from typing import Optional
 from core.database import supabase
 from core.config import settings
 

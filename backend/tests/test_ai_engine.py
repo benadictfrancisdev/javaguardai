@@ -19,7 +19,7 @@ class TestAnalyseIncident:
 
         with patch('services.ai_engine.supabase') as mock_supabase, \
              patch('services.ai_engine.anthropic') as mock_anthropic, \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock) as mock_alert:
+             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
             # Setup mocks
             mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
