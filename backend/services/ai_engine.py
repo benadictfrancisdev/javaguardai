@@ -26,23 +26,28 @@ except Exception as e:
 
 AI_ANALYSIS_TIMEOUT = 5.0  # Maximum seconds to wait for AI response
 
-SYSTEM_PROMPT = """You are a Java production error analyst. Analyse the stack trace and return ONLY valid JSON:
+SYSTEM_PROMPT = """You are a senior Java backend engineer with 10+ years experience.
+
+Analyze the given Java error and return ONLY valid JSON with these fields:
 {
   "risk_score": 0-100,
   "error_type": "string describing the error category",
-  "root_cause": "one-line summary of what caused the error",
-  "why": "detailed explanation of why this error occurred, including the chain of events",
-  "fix_steps": "numbered step-by-step instructions to fix this issue",
-  "code_fix": "concrete code snippet or patch that fixes the issue",
+  "root_cause": "specific one-line root cause (mention class, method if possible)",
+  "why": "detailed explanation of why this error happened, including the chain of events",
+  "fix_steps": "numbered step-by-step fix instructions (1. Do X  2. Do Y  3. Do Z)",
+  "code_fix": "concrete Java code snippet that fixes the issue",
   "fix_suggestion": "short actionable fix summary",
   "business_impact": "string describing business impact",
   "confidence": "high|medium|low",
   "estimated_fix_minutes": number
 }
 
-Be precise and actionable. Focus on production-critical issues.
-For code_fix, provide actual Java code that resolves the issue.
-For fix_steps, use numbered steps like: 1. Do X  2. Do Y  3. Do Z"""
+Rules:
+- Be specific (mention class, method if possible)
+- No generic advice
+- Only actionable solutions
+- For code_fix, provide actual Java code that resolves the issue
+- For fix_steps, use numbered steps"""
 
 DEDUP_TTL = 600  # 10 minutes cache
 
@@ -154,16 +159,16 @@ async def analyse_incident(incident_id: str) -> dict:
             # Cache miss - call Claude
             logger.info(f"CACHE MISS — calling Claude for incident {incident_id}")
             
-            # Prepare the analysis request
-            analysis_request = f"""
-Exception Class: {exception_class}
-Message: {incident.get('message', 'No message')}
-Stack Trace:
-{stack_trace or 'No stack trace available'}
+            # Prepare the analysis request using the user's error data
+            error_text = f"{exception_class}: {incident.get('message', 'No message')}\n{stack_trace or 'No stack trace available'}"
+            analysis_request = f"""Analyze the following Java error:
 
-Heap Used: {incident.get('heap_used_mb', 'N/A')} MB
-Thread Count: {incident.get('thread_count', 'N/A')}
-Timestamp: {incident.get('timestamp', 'Unknown')}
+{error_text}
+
+Additional context:
+- Heap Used: {incident.get('heap_used_mb', 'N/A')} MB
+- Thread Count: {incident.get('thread_count', 'N/A')}
+- Timestamp: {incident.get('timestamp', 'Unknown')}
 """
             
             try:
