@@ -211,9 +211,10 @@ class TestAnalyseIncident:
              patch('services.ai_engine.redis_client', None), \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
-            # Simulate timeout - make generate_content slow enough to trigger asyncio.wait_for timeout
-            async def slow_generate(*args, **kwargs):
-                await asyncio.sleep(10)
+            # Simulate timeout - use a synchronous sleep since run_in_executor runs the lambda in a thread
+            import time
+            def slow_generate(*args, **kwargs):
+                time.sleep(10)
             mock_client.models.generate_content.side_effect = slow_generate
             
             from services.ai_engine import analyse_incident

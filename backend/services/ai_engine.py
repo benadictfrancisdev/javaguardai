@@ -180,6 +180,8 @@ Additional context:
 """
             
             try:
+                if not gemini_client:
+                    raise RuntimeError("Gemini AI client is not configured")
                 # Call Gemini API via google-genai SDK with timeout
                 loop = asyncio.get_event_loop()
                 gemini_response = await asyncio.wait_for(
