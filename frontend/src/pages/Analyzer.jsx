@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { submitStackTrace } from '../api/client';
 import { RiskBadge, RiskMeter } from '../components/RiskBadge';
-import { Play, Loader2, AlertCircle, Target, Lightbulb, Briefcase, Timer } from 'lucide-react';
+import { Play, Loader2, AlertCircle, Target, Lightbulb, Briefcase, Timer, HelpCircle, ListOrdered, Code } from 'lucide-react';
 
 const sampleStackTrace = `java.lang.NullPointerException: Cannot invoke method getName() on null object
     at com.example.service.UserService.processUser(UserService.java:142)
@@ -191,9 +191,29 @@ export default function Analyzer() {
                 <div className="bg-brand-card border border-zinc-800 rounded-xl p-5">
                   <div className="flex items-center gap-2 text-yellow-400 mb-2">
                     <Target className="w-4 h-4" />
-                    <span className="text-sm font-semibold">WHY IT HAPPENED</span>
+                    <span className="text-sm font-semibold">ROOT CAUSE</span>
                   </div>
                   <p className="text-sm text-zinc-300">{analysis.root_cause}</p>
+                </div>
+              )}
+
+              {analysis.why && (
+                <div className="bg-brand-card border border-zinc-800 rounded-xl p-5">
+                  <div className="flex items-center gap-2 text-orange-400 mb-2">
+                    <HelpCircle className="w-4 h-4" />
+                    <span className="text-sm font-semibold">WHY IT HAPPENED</span>
+                  </div>
+                  <p className="text-sm text-zinc-300">{analysis.why}</p>
+                </div>
+              )}
+
+              {analysis.fix_steps && (
+                <div className="bg-brand-card border border-zinc-800 rounded-xl p-5">
+                  <div className="flex items-center gap-2 text-blue-400 mb-2">
+                    <ListOrdered className="w-4 h-4" />
+                    <span className="text-sm font-semibold">FIX STEPS</span>
+                  </div>
+                  <p className="text-sm text-zinc-300 whitespace-pre-line">{analysis.fix_steps}</p>
                 </div>
               )}
 
@@ -204,6 +224,18 @@ export default function Analyzer() {
                     <span className="text-sm font-semibold">HOW TO FIX</span>
                   </div>
                   <p className="text-sm text-zinc-300">{analysis.fix_suggestion}</p>
+                </div>
+              )}
+
+              {analysis.code_fix && (
+                <div className="bg-brand-card border border-zinc-800 rounded-xl p-5">
+                  <div className="flex items-center gap-2 text-green-400 mb-2">
+                    <Code className="w-4 h-4" />
+                    <span className="text-sm font-semibold">CODE FIX</span>
+                  </div>
+                  <pre className="p-3 rounded-lg bg-zinc-950 border border-zinc-800 text-sm text-zinc-300 font-mono whitespace-pre-wrap overflow-x-auto">
+                    {analysis.code_fix}
+                  </pre>
                 </div>
               )}
 

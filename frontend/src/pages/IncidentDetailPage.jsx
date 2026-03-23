@@ -18,7 +18,10 @@ import {
   Lightbulb,
   Target,
   Briefcase,
-  Timer
+  Timer,
+  HelpCircle,
+  ListOrdered,
+  Code
 } from 'lucide-react';
 import { formatDate, cn } from '../lib/utils';
 
@@ -253,6 +256,32 @@ export default function IncidentDetailPage() {
             </Card>
           )}
 
+          {/* Why It Happened */}
+          {analysis.why && (
+            <Card className="tracing-beam">
+              <CardHeader className="flex flex-row items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-yellow-400" />
+                <CardTitle className="text-base">Why It Happened</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-relaxed">{analysis.why}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Fix Steps */}
+          {analysis.fix_steps && (
+            <Card className="tracing-beam">
+              <CardHeader className="flex flex-row items-center gap-2">
+                <ListOrdered className="w-5 h-5 text-blue-400" />
+                <CardTitle className="text-base">Fix Steps</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-relaxed whitespace-pre-line">{analysis.fix_steps}</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Fix Suggestion */}
           {analysis.fix_suggestion && (
             <Card className="tracing-beam">
@@ -262,6 +291,21 @@ export default function IncidentDetailPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-relaxed">{analysis.fix_suggestion}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Code Fix */}
+          {analysis.code_fix && (
+            <Card className="lg:col-span-2 tracing-beam">
+              <CardHeader className="flex flex-row items-center gap-2">
+                <Code className="w-5 h-5 text-green-400" />
+                <CardTitle className="text-base">Code Fix</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="p-4 rounded-lg bg-secondary/50 text-sm font-mono whitespace-pre-wrap overflow-x-auto">
+                  {analysis.code_fix}
+                </pre>
               </CardContent>
             </Card>
           )}

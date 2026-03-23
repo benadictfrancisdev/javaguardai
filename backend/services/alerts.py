@@ -1,6 +1,5 @@
 import httpx
 import logging
-from typing import Optional
 from core.database import supabase
 from core.config import settings
 
@@ -79,7 +78,14 @@ async def send_slack_alert(incident_id: str) -> bool:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*Fix Suggestion:*\n{analysis.get('fix_suggestion', 'Analysis pending...')}"
+                        "text": f"*Why:*\n{analysis.get('why', 'Details pending...')}"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Fix Steps:*\n{analysis.get('fix_steps', analysis.get('fix_suggestion', 'Analysis pending...'))}"
                     }
                 },
                 {

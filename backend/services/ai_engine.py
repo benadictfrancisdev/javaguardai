@@ -1,14 +1,15 @@
+import asyncio
 import json
 import hashlib
 import logging
 import re
 from typing import Optional
 import redis
+from openai import AsyncOpenAI
 from core.database import supabase
 from core.config import settings
 from services.risk_scorer import enhance_risk_score
 from services.alerts import send_slack_alert
-import anthropic
 
 logger = logging.getLogger(__name__)
 
@@ -23,18 +24,45 @@ except Exception as e:
     logger.warning(f"Redis not available, deduplication disabled: {e}")
     redis_client = None
 
-SYSTEM_PROMPT = """You are a Java production error analyst. Analyse the stack trace and return ONLY valid JSON:
+AI_ANALYSIS_TIMEOUT = 5.0  # Maximum seconds to wait for AI response
+
+# Configure OpenAI-compatible AI client (works with Emergent, OpenAI, Google Gemini, etc.)
+ai_client = None
+try:
+    if settings.EMERGENT_LLM_KEY:
+        ai_client = AsyncOpenAI(
+            api_key=settings.EMERGENT_LLM_KEY,
+            base_url=settings.EMERGENT_BASE_URL,
+        )
+        logger.info(f"AI client configured with base URL: {settings.EMERGENT_BASE_URL}")
+    else:
+        logger.warning("No EMERGENT_LLM_KEY set, AI analysis will use fallback")
+except Exception as e:
+    logger.warning(f"AI client configuration failed: {e}")
+    ai_client = None
+
+SYSTEM_PROMPT = """You are a senior Java backend engineer with 10+ years experience.
+
+Analyze the given Java error and return ONLY valid JSON with these fields:
 {
   "risk_score": 0-100,
   "error_type": "string describing the error category",
-  "root_cause": "string explaining the root cause",
-  "fix_suggestion": "string with actionable fix steps",
+  "root_cause": "specific one-line root cause (mention class, method if possible)",
+  "why": "detailed explanation of why this error happened, including the chain of events",
+  "fix_steps": "numbered step-by-step fix instructions (1. Do X  2. Do Y  3. Do Z)",
+  "code_fix": "concrete Java code snippet that fixes the issue",
+  "fix_suggestion": "short actionable fix summary",
   "business_impact": "string describing business impact",
   "confidence": "high|medium|low",
   "estimated_fix_minutes": number
 }
 
-Be precise and actionable. Focus on production-critical issues."""
+Rules:
+- Be specific (mention class, method if possible)
+- No generic advice
+- Only actionable solutions
+- For code_fix, provide actual Java code that resolves the issue
+- For fix_steps, use numbered steps"""
 
 DEDUP_TTL = 600  # 10 minutes cache
 
@@ -66,7 +94,7 @@ def get_cached_analysis(customer_id: str, dedup_key: str) -> Optional[dict]:
         cache_key = f"dedup:{customer_id}:{dedup_key}"
         cached = redis_client.get(cache_key)
         if cached:
-            logger.info(f"CACHE HIT — skipped Claude call for key {dedup_key}")
+            logger.info(f"CACHE HIT — skipped AI call for key {dedup_key}")
             return json.loads(cached)
     except Exception as e:
         logger.warning(f"Redis get error: {e}")
@@ -85,6 +113,27 @@ def set_cached_analysis(customer_id: str, dedup_key: str, analysis: dict) -> Non
         logger.info(f"Cached analysis for key {dedup_key}")
     except Exception as e:
         logger.warning(f"Redis set error: {e}")
+
+
+def _build_fallback_analysis(exception_class: str, message: str, stack_trace: str) -> dict:
+    """
+    Build a structured fallback analysis from the original error data.
+    Used when AI analysis fails (timeout, API error, parse error).
+    Preserves the original error information instead of showing generic messages.
+    """
+    return {
+        "risk_score": 50,
+        "error_type": exception_class,
+        "root_cause": f"{exception_class}: {message}" if message else exception_class,
+        "why": f"AI analysis unavailable. Original error: {message}" if message else "AI analysis unavailable. Manual review required.",
+        "fix_steps": f"1. Review the stack trace for {exception_class}\n2. Check the code at the location indicated in the trace\n3. Apply appropriate fix based on the exception type",
+        "code_fix": "",
+        "fix_suggestion": f"Review {exception_class} at the location shown in the stack trace",
+        "business_impact": "Unknown - AI analysis was not available",
+        "confidence": "low",
+        "estimated_fix_minutes": 60,
+        "fallback": True
+    }
 
 
 async def analyse_incident(incident_id: str) -> dict:
@@ -122,34 +171,37 @@ async def analyse_incident(incident_id: str) -> dict:
             analysis = cached_analysis
             base_score = analysis.get('risk_score', 50)
         else:
-            # Cache miss - call Claude
-            logger.info(f"CACHE MISS — calling Claude for incident {incident_id}")
+            # Cache miss - call AI
+            logger.info(f"CACHE MISS — calling AI for incident {incident_id}")
             
-            # Prepare the analysis request
-            analysis_request = f"""
-Exception Class: {exception_class}
-Message: {incident.get('message', 'No message')}
-Stack Trace:
-{stack_trace or 'No stack trace available'}
+            # Prepare the analysis request using the user's error data
+            error_text = f"{exception_class}: {incident.get('message', 'No message')}\n{stack_trace or 'No stack trace available'}"
+            analysis_request = f"""Analyze the following Java error:
 
-Heap Used: {incident.get('heap_used_mb', 'N/A')} MB
-Thread Count: {incident.get('thread_count', 'N/A')}
-Timestamp: {incident.get('timestamp', 'Unknown')}
+{error_text}
+
+Additional context:
+- Heap Used: {incident.get('heap_used_mb', 'N/A')} MB
+- Thread Count: {incident.get('thread_count', 'N/A')}
+- Timestamp: {incident.get('timestamp', 'Unknown')}
 """
             
             try:
-                # Call Claude API via Emergent LLM proxy
-                client = anthropic.AsyncAnthropic(
-                    api_key=settings.EMERGENT_LLM_KEY,
-                    base_url=settings.EMERGENT_BASE_URL
+                if not ai_client:
+                    raise RuntimeError("AI client is not configured")
+                # Call OpenAI-compatible API with timeout
+                ai_response = await asyncio.wait_for(
+                    ai_client.chat.completions.create(
+                        model=settings.AI_MODEL,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": analysis_request},
+                        ],
+                        max_tokens=1024,
+                    ),
+                    timeout=AI_ANALYSIS_TIMEOUT
                 )
-                message = await client.messages.create(
-                    model="claude-sonnet-4-20250514",
-                    max_tokens=1024,
-                    system=SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": analysis_request}]
-                )
-                response = message.content[0].text
+                response = ai_response.choices[0].message.content
                 
                 # Parse JSON response
                 response_text = response.strip()
@@ -163,30 +215,37 @@ Timestamp: {incident.get('timestamp', 'Unknown')}
                 analysis = json.loads(response_text.strip())
                 base_score = analysis.get('risk_score', 50)
                 
+                # Ensure new structured fields are present with defaults
+                analysis.setdefault('root_cause', analysis.get('error_type', 'Unknown'))
+                analysis.setdefault('why', analysis.get('root_cause', 'AI analysis did not provide details'))
+                analysis.setdefault('fix_steps', analysis.get('fix_suggestion', 'Manual review required'))
+                analysis.setdefault('code_fix', '')
+                
                 # Cache the result
                 set_cached_analysis(customer_id, dedup_key, analysis)
                 
+            except asyncio.TimeoutError:
+                logger.error(f"AI analysis timed out after {AI_ANALYSIS_TIMEOUT}s for incident {incident_id}")
+                # Fallback: return structured analysis from original error data
+                analysis = _build_fallback_analysis(
+                    exception_class, incident.get('message', ''), stack_trace
+                )
+                base_score = analysis['risk_score']
+                
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Claude response: {e}")
-                analysis = {
-                    "risk_score": 50,
-                    "error_type": "Parse Error",
-                    "root_cause": "Unable to parse AI response",
-                    "fix_suggestion": "Manual review required",
-                    "business_impact": "Unknown",
-                    "confidence": "low",
-                    "estimated_fix_minutes": 60
-                }
-                base_score = 50
+                logger.error(f"Failed to parse AI response: {e}")
+                analysis = _build_fallback_analysis(
+                    exception_class, incident.get('message', ''), stack_trace
+                )
+                base_score = analysis['risk_score']
                 
             except Exception as e:
-                logger.error(f"Claude API error for incident {incident_id}: {e}")
-                # Update incident with error status
-                supabase.table('incidents').update({
-                    'status': 'analysis_failed',
-                    'analysis': {"error": str(e)}
-                }).eq('id', incident_id).execute()
-                return {"error": str(e), "status": "analysis_failed"}
+                logger.error(f"AI API error for incident {incident_id}: {e}")
+                # Fallback: return structured analysis from original error data
+                analysis = _build_fallback_analysis(
+                    exception_class, incident.get('message', ''), stack_trace
+                )
+                base_score = analysis['risk_score']
         
         # Enhance risk score based on rules
         heap_used_mb = incident.get('heap_used_mb', 0)
@@ -229,6 +288,6 @@ Timestamp: {incident.get('timestamp', 'Unknown')}
                 'status': 'analysis_failed',
                 'analysis': {"error": str(e)}
             }).eq('id', incident_id).execute()
-        except:
+        except Exception:
             pass
         return {"error": str(e), "status": "analysis_failed"}
