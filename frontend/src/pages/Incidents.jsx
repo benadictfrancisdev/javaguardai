@@ -4,7 +4,8 @@ import { getIncidents, resolveIncident, reanalyseIncident } from '../api/client'
 import { RiskBadge } from '../components/RiskBadge';
 import { 
   Search, RefreshCw, X, CheckCircle, AlertTriangle, 
-  Clock, Target, Lightbulb, Briefcase, Timer, RotateCcw
+  Clock, Target, Lightbulb, Briefcase, Timer, RotateCcw,
+  HelpCircle, ListOrdered, Code
 } from 'lucide-react';
 
 const StatusChip = ({ status }) => {
@@ -115,9 +116,29 @@ const SidePanel = ({ incident, onClose, onResolve, onReanalyse }) => {
               <div className="p-4 rounded-lg bg-zinc-900/50 border border-zinc-800">
                 <div className="flex items-center gap-2 text-yellow-400 mb-2">
                   <Target className="w-4 h-4" />
-                  <span className="text-sm font-semibold">WHY IT HAPPENED</span>
+                  <span className="text-sm font-semibold">ROOT CAUSE</span>
                 </div>
                 <p className="text-sm text-zinc-300">{analysis.root_cause}</p>
+              </div>
+            )}
+
+            {analysis.why && (
+              <div className="p-4 rounded-lg bg-zinc-900/50 border border-zinc-800">
+                <div className="flex items-center gap-2 text-orange-400 mb-2">
+                  <HelpCircle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">WHY IT HAPPENED</span>
+                </div>
+                <p className="text-sm text-zinc-300">{analysis.why}</p>
+              </div>
+            )}
+
+            {analysis.fix_steps && (
+              <div className="p-4 rounded-lg bg-zinc-900/50 border border-zinc-800">
+                <div className="flex items-center gap-2 text-blue-400 mb-2">
+                  <ListOrdered className="w-4 h-4" />
+                  <span className="text-sm font-semibold">FIX STEPS</span>
+                </div>
+                <p className="text-sm text-zinc-300 whitespace-pre-line">{analysis.fix_steps}</p>
               </div>
             )}
             
@@ -128,6 +149,18 @@ const SidePanel = ({ incident, onClose, onResolve, onReanalyse }) => {
                   <span className="text-sm font-semibold">HOW TO FIX</span>
                 </div>
                 <p className="text-sm text-zinc-300">{analysis.fix_suggestion}</p>
+              </div>
+            )}
+
+            {analysis.code_fix && (
+              <div className="p-4 rounded-lg bg-zinc-900/50 border border-zinc-800">
+                <div className="flex items-center gap-2 text-green-400 mb-2">
+                  <Code className="w-4 h-4" />
+                  <span className="text-sm font-semibold">CODE FIX</span>
+                </div>
+                <pre className="p-3 rounded-lg bg-zinc-950 border border-zinc-800 text-sm text-zinc-300 font-mono whitespace-pre-wrap overflow-x-auto">
+                  {analysis.code_fix}
+                </pre>
               </div>
             )}
 
