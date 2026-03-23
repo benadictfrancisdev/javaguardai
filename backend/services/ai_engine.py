@@ -5,11 +5,11 @@ import logging
 import re
 from typing import Optional
 import redis
+from openai import AsyncOpenAI
 from core.database import supabase
 from core.config import settings
 from services.risk_scorer import enhance_risk_score
 from services.alerts import send_slack_alert
-from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +26,20 @@ except Exception as e:
 
 AI_ANALYSIS_TIMEOUT = 5.0  # Maximum seconds to wait for AI response
 
-# Configure Gemini AI client
+# Configure OpenAI-compatible AI client (works with Emergent, OpenAI, Google Gemini, etc.)
+ai_client = None
 try:
-    gemini_client = genai.Client(api_key=settings.EMERGENT_LLM_KEY)
-    logger.info("Gemini AI client configured")
+    if settings.EMERGENT_LLM_KEY:
+        ai_client = AsyncOpenAI(
+            api_key=settings.EMERGENT_LLM_KEY,
+            base_url=settings.EMERGENT_BASE_URL,
+        )
+        logger.info(f"AI client configured with base URL: {settings.EMERGENT_BASE_URL}")
+    else:
+        logger.warning("No EMERGENT_LLM_KEY set, AI analysis will use fallback")
 except Exception as e:
-    logger.warning(f"Gemini AI client configuration failed: {e}")
-    gemini_client = None
+    logger.warning(f"AI client configuration failed: {e}")
+    ai_client = None
 
 SYSTEM_PROMPT = """You are a senior Java backend engineer with 10+ years experience.
 
@@ -87,7 +94,7 @@ def get_cached_analysis(customer_id: str, dedup_key: str) -> Optional[dict]:
         cache_key = f"dedup:{customer_id}:{dedup_key}"
         cached = redis_client.get(cache_key)
         if cached:
-            logger.info(f"CACHE HIT — skipped Gemini call for key {dedup_key}")
+            logger.info(f"CACHE HIT — skipped AI call for key {dedup_key}")
             return json.loads(cached)
     except Exception as e:
         logger.warning(f"Redis get error: {e}")
@@ -164,8 +171,8 @@ async def analyse_incident(incident_id: str) -> dict:
             analysis = cached_analysis
             base_score = analysis.get('risk_score', 50)
         else:
-            # Cache miss - call Gemini
-            logger.info(f"CACHE MISS — calling Gemini for incident {incident_id}")
+            # Cache miss - call AI
+            logger.info(f"CACHE MISS — calling AI for incident {incident_id}")
             
             # Prepare the analysis request using the user's error data
             error_text = f"{exception_class}: {incident.get('message', 'No message')}\n{stack_trace or 'No stack trace available'}"
@@ -180,25 +187,21 @@ Additional context:
 """
             
             try:
-                if not gemini_client:
-                    raise RuntimeError("Gemini AI client is not configured")
-                # Call Gemini API via google-genai SDK with timeout
-                loop = asyncio.get_event_loop()
-                gemini_response = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        None,
-                        lambda: gemini_client.models.generate_content(
-                            model=settings.GEMINI_MODEL,
-                            contents=analysis_request,
-                            config={
-                                "system_instruction": SYSTEM_PROMPT,
-                                "max_output_tokens": 1024,
-                            }
-                        )
+                if not ai_client:
+                    raise RuntimeError("AI client is not configured")
+                # Call OpenAI-compatible API with timeout
+                ai_response = await asyncio.wait_for(
+                    ai_client.chat.completions.create(
+                        model=settings.AI_MODEL,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": analysis_request},
+                        ],
+                        max_tokens=1024,
                     ),
                     timeout=AI_ANALYSIS_TIMEOUT
                 )
-                response = gemini_response.text
+                response = ai_response.choices[0].message.content
                 
                 # Parse JSON response
                 response_text = response.strip()
@@ -230,14 +233,14 @@ Additional context:
                 base_score = analysis['risk_score']
                 
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Gemini response: {e}")
+                logger.error(f"Failed to parse AI response: {e}")
                 analysis = _build_fallback_analysis(
                     exception_class, incident.get('message', ''), stack_trace
                 )
                 base_score = analysis['risk_score']
                 
             except Exception as e:
-                logger.error(f"Gemini API error for incident {incident_id}: {e}")
+                logger.error(f"AI API error for incident {incident_id}: {e}")
                 # Fallback: return structured analysis from original error data
                 analysis = _build_fallback_analysis(
                     exception_class, incident.get('message', ''), stack_trace

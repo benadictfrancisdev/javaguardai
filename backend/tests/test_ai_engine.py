@@ -14,18 +14,18 @@ class TestAnalyseIncident:
     @pytest.mark.asyncio
     async def test_analyse_incident_returns_valid_json(self, test_incident, mock_claude_response):
         """Test that analyse_incident returns valid JSON with all required fields."""
-        mock_gemini_response = MagicMock()
-        mock_gemini_response.text = mock_claude_response
+        mock_ai_response = MagicMock()
+        mock_ai_response.choices = [MagicMock(message=MagicMock(content=mock_claude_response))]
 
         mock_supabase = MagicMock()
         mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
 
         with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.gemini_client') as mock_client, \
+             patch('services.ai_engine.ai_client') as mock_client, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
-            mock_client.models.generate_content.return_value = mock_gemini_response
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
             
             from services.ai_engine import analyse_incident
             result = await analyse_incident('test-incident-123')
@@ -40,18 +40,18 @@ class TestAnalyseIncident:
     @pytest.mark.asyncio
     async def test_analysis_contains_structured_fields(self, test_incident, mock_claude_response):
         """Test that analysis contains the new structured fields: root_cause, why, fix_steps, code_fix."""
-        mock_gemini_response = MagicMock()
-        mock_gemini_response.text = mock_claude_response
+        mock_ai_response = MagicMock()
+        mock_ai_response.choices = [MagicMock(message=MagicMock(content=mock_claude_response))]
 
         mock_supabase = MagicMock()
         mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
 
         with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.gemini_client') as mock_client, \
+             patch('services.ai_engine.ai_client') as mock_client, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
-            mock_client.models.generate_content.return_value = mock_gemini_response
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
             
             from services.ai_engine import analyse_incident
             result = await analyse_incident('test-incident-123')
@@ -66,18 +66,18 @@ class TestAnalyseIncident:
     @pytest.mark.asyncio
     async def test_risk_score_is_integer_between_0_and_100(self, test_incident, mock_claude_response):
         """Test that risk_score is an integer between 0 and 100."""
-        mock_gemini_response = MagicMock()
-        mock_gemini_response.text = mock_claude_response
+        mock_ai_response = MagicMock()
+        mock_ai_response.choices = [MagicMock(message=MagicMock(content=mock_claude_response))]
 
         mock_supabase = MagicMock()
         mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
 
         with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.gemini_client') as mock_client, \
+             patch('services.ai_engine.ai_client') as mock_client, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
-            mock_client.models.generate_content.return_value = mock_gemini_response
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
             
             from services.ai_engine import analyse_incident
             result = await analyse_incident('test-incident-123')
@@ -104,18 +104,18 @@ class TestAnalyseIncident:
             "estimated_fix_minutes": 60
         })
         
-        mock_gemini_response = MagicMock()
-        mock_gemini_response.text = low_risk_response
+        mock_ai_response = MagicMock()
+        mock_ai_response.choices = [MagicMock(message=MagicMock(content=low_risk_response))]
 
         mock_supabase = MagicMock()
         mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
 
         with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.gemini_client') as mock_client, \
+             patch('services.ai_engine.ai_client') as mock_client, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
-            mock_client.models.generate_content.return_value = mock_gemini_response
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
             
             from services.ai_engine import analyse_incident
             result = await analyse_incident('test-incident-123')
@@ -127,18 +127,18 @@ class TestAnalyseIncident:
     @pytest.mark.asyncio
     async def test_nullpointerexception_error_type(self, test_incident, mock_claude_response):
         """Test that NullPointerException returns correct error_type."""
-        mock_gemini_response = MagicMock()
-        mock_gemini_response.text = mock_claude_response
+        mock_ai_response = MagicMock()
+        mock_ai_response.choices = [MagicMock(message=MagicMock(content=mock_claude_response))]
 
         mock_supabase = MagicMock()
         mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
 
         with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.gemini_client') as mock_client, \
+             patch('services.ai_engine.ai_client') as mock_client, \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
-            mock_client.models.generate_content.return_value = mock_gemini_response
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
             
             from services.ai_engine import analyse_incident
             result = await analyse_incident('test-incident-123')
@@ -171,19 +171,19 @@ class TestAnalyseIncident:
                 assert result['cache_hit'] is True
 
     @pytest.mark.asyncio
-    async def test_gemini_api_error_uses_fallback(self, test_incident):
-        """Test that Gemini API error triggers fallback with original error data."""
+    async def test_ai_api_error_uses_fallback(self, test_incident):
+        """Test that AI API error triggers fallback with original error data."""
         mock_supabase = MagicMock()
         mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
 
         with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.gemini_client') as mock_client, \
+             patch('services.ai_engine.ai_client') as mock_client, \
              patch('services.ai_engine.redis_client', None), \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
-            # Simulate Gemini API error
-            mock_client.models.generate_content.side_effect = Exception("API Error")
+            # Simulate AI API error
+            mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API Error"))
             
             from services.ai_engine import analyse_incident
             result = await analyse_incident('test-incident-123')
@@ -207,15 +207,14 @@ class TestAnalyseIncident:
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
 
         with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.gemini_client') as mock_client, \
+             patch('services.ai_engine.ai_client') as mock_client, \
              patch('services.ai_engine.redis_client', None), \
              patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
             
-            # Simulate timeout - use a synchronous sleep since run_in_executor runs the lambda in a thread
-            import time
-            def slow_generate(*args, **kwargs):
-                time.sleep(10)
-            mock_client.models.generate_content.side_effect = slow_generate
+            # Simulate timeout - create an async function that sleeps longer than timeout
+            async def slow_create(*args, **kwargs):
+                await asyncio.sleep(10)
+            mock_client.chat.completions.create = slow_create
             
             from services.ai_engine import analyse_incident
             result = await analyse_incident('test-incident-123')
