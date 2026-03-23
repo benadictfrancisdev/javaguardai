@@ -9,7 +9,7 @@ from core.database import supabase
 from core.config import settings
 from services.risk_scorer import enhance_risk_score
 from services.alerts import send_slack_alert
-import anthropic
+from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,14 @@ except Exception as e:
     redis_client = None
 
 AI_ANALYSIS_TIMEOUT = 5.0  # Maximum seconds to wait for AI response
+
+# Configure Gemini AI client
+try:
+    gemini_client = genai.Client(api_key=settings.EMERGENT_LLM_KEY)
+    logger.info("Gemini AI client configured")
+except Exception as e:
+    logger.warning(f"Gemini AI client configuration failed: {e}")
+    gemini_client = None
 
 SYSTEM_PROMPT = """You are a senior Java backend engineer with 10+ years experience.
 
@@ -79,7 +87,7 @@ def get_cached_analysis(customer_id: str, dedup_key: str) -> Optional[dict]:
         cache_key = f"dedup:{customer_id}:{dedup_key}"
         cached = redis_client.get(cache_key)
         if cached:
-            logger.info(f"CACHE HIT — skipped Claude call for key {dedup_key}")
+            logger.info(f"CACHE HIT — skipped Gemini call for key {dedup_key}")
             return json.loads(cached)
     except Exception as e:
         logger.warning(f"Redis get error: {e}")
@@ -156,8 +164,8 @@ async def analyse_incident(incident_id: str) -> dict:
             analysis = cached_analysis
             base_score = analysis.get('risk_score', 50)
         else:
-            # Cache miss - call Claude
-            logger.info(f"CACHE MISS — calling Claude for incident {incident_id}")
+            # Cache miss - call Gemini
+            logger.info(f"CACHE MISS — calling Gemini for incident {incident_id}")
             
             # Prepare the analysis request using the user's error data
             error_text = f"{exception_class}: {incident.get('message', 'No message')}\n{stack_trace or 'No stack trace available'}"
@@ -172,21 +180,23 @@ Additional context:
 """
             
             try:
-                # Call Claude API via Emergent LLM proxy with timeout
-                client = anthropic.AsyncAnthropic(
-                    api_key=settings.EMERGENT_LLM_KEY,
-                    base_url=settings.EMERGENT_BASE_URL
-                )
-                message = await asyncio.wait_for(
-                    client.messages.create(
-                        model="claude-sonnet-4-20250514",
-                        max_tokens=1024,
-                        system=SYSTEM_PROMPT,
-                        messages=[{"role": "user", "content": analysis_request}]
+                # Call Gemini API via google-genai SDK with timeout
+                loop = asyncio.get_event_loop()
+                gemini_response = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda: gemini_client.models.generate_content(
+                            model=settings.GEMINI_MODEL,
+                            contents=analysis_request,
+                            config={
+                                "system_instruction": SYSTEM_PROMPT,
+                                "max_output_tokens": 1024,
+                            }
+                        )
                     ),
                     timeout=AI_ANALYSIS_TIMEOUT
                 )
-                response = message.content[0].text
+                response = gemini_response.text
                 
                 # Parse JSON response
                 response_text = response.strip()
@@ -218,14 +228,14 @@ Additional context:
                 base_score = analysis['risk_score']
                 
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse Claude response: {e}")
+                logger.error(f"Failed to parse Gemini response: {e}")
                 analysis = _build_fallback_analysis(
                     exception_class, incident.get('message', ''), stack_trace
                 )
                 base_score = analysis['risk_score']
                 
             except Exception as e:
-                logger.error(f"Claude API error for incident {incident_id}: {e}")
+                logger.error(f"Gemini API error for incident {incident_id}: {e}")
                 # Fallback: return structured analysis from original error data
                 analysis = _build_fallback_analysis(
                     exception_class, incident.get('message', ''), stack_trace

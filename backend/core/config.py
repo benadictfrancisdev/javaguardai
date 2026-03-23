@@ -11,6 +11,7 @@ class Settings:
     SUPABASE_ANON_KEY: str = os.environ.get('SUPABASE_ANON_KEY', '')
     EMERGENT_LLM_KEY: str = os.environ.get('EMERGENT_LLM_KEY', 'sk-emergent-b9aD8Cc64589535389')
     EMERGENT_BASE_URL: str = os.environ.get('EMERGENT_BASE_URL', 'https://api.emergentmind.com')
+    GEMINI_MODEL: str = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash')
     REDIS_URL: str = os.environ.get('REDIS_URL', 'redis://localhost:6379')
     SENTRY_DSN: str = os.environ.get('SENTRY_DSN', '')
     SLACK_WEBHOOK_URL: str = os.environ.get('SLACK_WEBHOOK_URL', '')
