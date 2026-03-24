@@ -70,6 +70,7 @@ async def ingest_error(
     # Check for existing error with same hash
     existing = db.query(Error).filter(Error.hash == error_hash).first()
 
+    # Case 1: Existing error WITH analysis — return cached duplicate
     if existing and existing.analysis:
         logger.info(f"Duplicate error detected (hash={error_hash})")
         return ErrorCreatedResponse(
@@ -84,22 +85,27 @@ async def ingest_error(
             ),
         )
 
-    # New error — persist it
-    new_error = Error(
-        error_text=payload.error,
-        hash=error_hash,
-        service_name=payload.service,
-        created_at=datetime.now(timezone.utc),
-    )
-    db.add(new_error)
-    db.flush()  # get the id
+    # Case 2: Existing error WITHOUT analysis — reuse the row
+    # Case 3: No existing error — create a new one
+    if existing:
+        target_error = existing
+        logger.info(f"Reusing existing error without analysis (hash={error_hash})")
+    else:
+        target_error = Error(
+            error_text=payload.error,
+            hash=error_hash,
+            service_name=payload.service,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(target_error)
+        db.flush()  # get the id
 
     # Run AI analysis
     ai_result = await analyse_error(payload.error, error_hash)
 
     # Persist analysis
     new_analysis = Analysis(
-        error_id=new_error.id,
+        error_id=target_error.id,
         root_cause=ai_result.get("root_cause", ""),
         why=ai_result.get("why", ""),
         fix_steps=ai_result.get("fix_steps", ""),
@@ -108,12 +114,12 @@ async def ingest_error(
     )
     db.add(new_analysis)
     db.commit()
-    db.refresh(new_error)
+    db.refresh(target_error)
 
     return ErrorCreatedResponse(
-        id=new_error.id,
-        hash=new_error.hash,
-        duplicate=False,
+        id=target_error.id,
+        hash=target_error.hash,
+        duplicate=existing is not None,
         analysis=AnalysisOut(
             root_cause=new_analysis.root_cause,
             why=new_analysis.why,

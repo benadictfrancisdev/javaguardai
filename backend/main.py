@@ -14,6 +14,7 @@ from core.database import init_db  # noqa: E402
 from fastapi import FastAPI, Request  # noqa: E402
 from routers.dashboard import router as dashboard_router  # noqa: E402
 from routers.errors import router as errors_router  # noqa: E402
+from routers.fix import router as fix_router  # noqa: E402
 from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 
@@ -66,6 +67,7 @@ app.add_middleware(
 # Include routers
 app.include_router(errors_router)
 app.include_router(dashboard_router)
+app.include_router(fix_router)
 
 
 @app.on_event("startup")

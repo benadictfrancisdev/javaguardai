@@ -10,6 +10,14 @@ const client = axios.create({
 });
 
 /**
+ * POST /fix — Send Java error/code to AI for analysis.
+ */
+export const fixError = async (input) => {
+  const response = await client.post('/fix', { input });
+  return response.data;
+};
+
+/**
  * Fetch dashboard summary: total errors, errors by service, recent errors.
  */
 export const getDashboard = async () => {
