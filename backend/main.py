@@ -73,6 +73,11 @@ def on_startup():
     """Create DB tables on first run."""
     init_db()
     logger.info("Database tables initialised")
+    if settings.INGESTION_API_KEY == "jg-default-key":
+        logger.warning(
+            "WARNING: Using default INGESTION_API_KEY. "
+            "Set INGESTION_API_KEY env var before deploying to production."
+        )
 
 
 @app.get("/health")

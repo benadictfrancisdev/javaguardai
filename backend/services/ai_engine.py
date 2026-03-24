@@ -160,6 +160,9 @@ async def analyse_error(error_text: str, error_hash: str) -> dict:
         for key in ("root_cause", "why", "fix_steps", "code_fix"):
             analysis.setdefault(key, "")
 
+        # 3 — cache only successful AI results
+        set_cached_analysis(error_hash, analysis)
+
     except asyncio.TimeoutError:
         logger.error("AI analysis timed out")
         analysis = _build_fallback(error_text)
@@ -169,8 +172,5 @@ async def analyse_error(error_text: str, error_hash: str) -> dict:
     except Exception as e:
         logger.error(f"AI API error: {e}")
         analysis = _build_fallback(error_text)
-
-    # 3 — cache
-    set_cached_analysis(error_hash, analysis)
 
     return analysis
