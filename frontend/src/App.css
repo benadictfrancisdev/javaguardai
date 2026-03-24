@@ -1,21 +1,4 @@
-/* Additional component styles for FrameworkGuard */
-
-/* Glassmorphism */
-.glass {
-  background: rgba(17, 22, 32, 0.8);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(39, 39, 42, 0.5);
-}
-
-/* Pulse animation for status dots */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
+/* JavaGuard AI — Cursor-like styles */
 
 /* Fade in animation */
 @keyframes fadeIn {
@@ -33,21 +16,12 @@
   animation: fadeIn 0.3s ease-out forwards;
 }
 
-/* Chart styles */
-.recharts-tooltip-wrapper {
-  outline: none !important;
-}
-
-/* Table row hover */
-tr:hover td {
-  background: rgba(39, 39, 42, 0.3);
-}
-
 /* Input autofill styles */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
-input:-webkit-autofill:focus {
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill {
   -webkit-text-fill-color: white;
-  -webkit-box-shadow: 0 0 0px 1000px #18181b inset;
+  -webkit-box-shadow: 0 0 0px 1000px #0A0D13 inset;
   transition: background-color 5000s ease-in-out 0s;
 }

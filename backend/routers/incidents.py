@@ -190,7 +190,7 @@ async def get_incident_stats(customer: dict = Depends(get_current_customer)):
                     total_today += 1
                 if incident_time >= week_start:
                     total_week += 1
-            except:
+            except (ValueError, TypeError):
                 pass
         
         risk_score = incident.get('risk_score')

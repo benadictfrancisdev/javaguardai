@@ -1,27 +1,25 @@
 import logging
-from supabase import create_client, Client
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 from .config import settings
 
 logger = logging.getLogger(__name__)
 
-_supabase_client: Client = None
+engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
 
-def get_supabase_client() -> Client:
-    global _supabase_client
-    if _supabase_client is None:
-        if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_KEY:
-            raise RuntimeError(
-                "SUPABASE_URL and SUPABASE_SERVICE_KEY must be set as environment variables in Railway."
-            )
-        _supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
-    return _supabase_client
+def get_db():
+    """FastAPI dependency that yields a SQLAlchemy session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
-class LazySupabase:
-    """Proxy that creates the Supabase client only on first use."""
-    def __getattr__(self, name):
-        return getattr(get_supabase_client(), name)
-
-
-supabase = LazySupabase()
+def init_db():
+    """Create all tables defined by Base metadata."""
+    from core.models import Error, Analysis  # noqa: F401
+    Base.metadata.create_all(bind=engine)

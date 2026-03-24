@@ -1,277 +1,97 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 import json
-import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
-# Import the module under test
-import sys
-sys.path.insert(0, '/app/backend')
+import pytest
 
-
-class TestAnalyseIncident:
-    """Tests for analyse_incident function."""
-    
-    @pytest.mark.asyncio
-    async def test_analyse_incident_returns_valid_json(self, test_incident, mock_claude_response):
-        """Test that analyse_incident returns valid JSON with all required fields."""
-        mock_ai_response = MagicMock()
-        mock_ai_response.choices = [MagicMock(message=MagicMock(content=mock_claude_response))]
-
-        mock_supabase = MagicMock()
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
-
-        with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.ai_client') as mock_client, \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
-            
-            from services.ai_engine import analyse_incident
-            result = await analyse_incident('test-incident-123')
-            
-            # Verify result has required fields
-            assert 'incident_id' in result or 'error' in result
-            if 'incident_id' in result:
-                assert 'risk_score' in result
-                assert 'analysis' in result
-                assert 'status' in result
-
-    @pytest.mark.asyncio
-    async def test_analysis_contains_structured_fields(self, test_incident, mock_claude_response):
-        """Test that analysis contains the new structured fields: root_cause, why, fix_steps, code_fix."""
-        mock_ai_response = MagicMock()
-        mock_ai_response.choices = [MagicMock(message=MagicMock(content=mock_claude_response))]
-
-        mock_supabase = MagicMock()
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
-
-        with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.ai_client') as mock_client, \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
-            
-            from services.ai_engine import analyse_incident
-            result = await analyse_incident('test-incident-123')
-            
-            if 'analysis' in result and result['analysis']:
-                analysis = result['analysis']
-                assert 'root_cause' in analysis
-                assert 'why' in analysis
-                assert 'fix_steps' in analysis
-                assert 'code_fix' in analysis
-
-    @pytest.mark.asyncio
-    async def test_risk_score_is_integer_between_0_and_100(self, test_incident, mock_claude_response):
-        """Test that risk_score is an integer between 0 and 100."""
-        mock_ai_response = MagicMock()
-        mock_ai_response.choices = [MagicMock(message=MagicMock(content=mock_claude_response))]
-
-        mock_supabase = MagicMock()
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
-
-        with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.ai_client') as mock_client, \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
-            
-            from services.ai_engine import analyse_incident
-            result = await analyse_incident('test-incident-123')
-            
-            if 'risk_score' in result:
-                assert isinstance(result['risk_score'], int)
-                assert 0 <= result['risk_score'] <= 100
-
-    @pytest.mark.asyncio
-    async def test_outofmemoryerror_returns_high_risk(self, test_incident):
-        """Test that OutOfMemoryError always returns risk_score >= 85."""
-        test_incident['exception_class'] = 'java.lang.OutOfMemoryError'
-        
-        low_risk_response = json.dumps({
-            "risk_score": 30,
-            "error_type": "OutOfMemoryError",
-            "root_cause": "Memory exhaustion",
-            "why": "JVM heap space exceeded due to large object allocation",
-            "fix_steps": "1. Increase heap size\n2. Profile memory usage\n3. Fix memory leaks",
-            "code_fix": "-Xmx2g -Xms1g",
-            "fix_suggestion": "Increase heap size",
-            "business_impact": "Application crash",
-            "confidence": "high",
-            "estimated_fix_minutes": 60
-        })
-        
-        mock_ai_response = MagicMock()
-        mock_ai_response.choices = [MagicMock(message=MagicMock(content=low_risk_response))]
-
-        mock_supabase = MagicMock()
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
-
-        with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.ai_client') as mock_client, \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
-            
-            from services.ai_engine import analyse_incident
-            result = await analyse_incident('test-incident-123')
-            
-            # OutOfMemoryError should have minimum score of 85
-            if 'risk_score' in result:
-                assert result['risk_score'] >= 85
-
-    @pytest.mark.asyncio
-    async def test_nullpointerexception_error_type(self, test_incident, mock_claude_response):
-        """Test that NullPointerException returns correct error_type."""
-        mock_ai_response = MagicMock()
-        mock_ai_response.choices = [MagicMock(message=MagicMock(content=mock_claude_response))]
-
-        mock_supabase = MagicMock()
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
-
-        with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.ai_client') as mock_client, \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_ai_response)
-            
-            from services.ai_engine import analyse_incident
-            result = await analyse_incident('test-incident-123')
-            
-            if 'analysis' in result and result['analysis']:
-                assert 'error_type' in result['analysis']
-                assert 'NullPointerException' in result['analysis']['error_type']
-
-    @pytest.mark.asyncio
-    async def test_deduplication_returns_cached_result(self, test_incident, mock_claude_response):
-        """Test that deduplication returns cached result on second call."""
-        cached_analysis = json.loads(mock_claude_response)
-        
-        mock_supabase = MagicMock()
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
-
-        with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.redis_client') as mock_redis, \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            # Simulate cache hit
-            mock_redis.get.return_value = json.dumps(cached_analysis)
-            
-            from services.ai_engine import analyse_incident
-            result = await analyse_incident('test-incident-123')
-            
-            # Should return cached result
-            if 'cache_hit' in result:
-                assert result['cache_hit'] is True
-
-    @pytest.mark.asyncio
-    async def test_ai_api_error_uses_fallback(self, test_incident):
-        """Test that AI API error triggers fallback with original error data."""
-        mock_supabase = MagicMock()
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
-
-        with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.ai_client') as mock_client, \
-             patch('services.ai_engine.redis_client', None), \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            # Simulate AI API error
-            mock_client.chat.completions.create = AsyncMock(side_effect=Exception("API Error"))
-            
-            from services.ai_engine import analyse_incident
-            result = await analyse_incident('test-incident-123')
-            
-            # Should use fallback and still return analysis (not error status)
-            assert 'analysis' in result
-            analysis = result['analysis']
-            assert analysis.get('fallback') is True
-            assert 'root_cause' in analysis
-            assert 'why' in analysis
-            assert 'fix_steps' in analysis
-            assert 'code_fix' in analysis
-            # Fallback should include original error info
-            assert test_incident['exception_class'] in analysis['root_cause']
-
-    @pytest.mark.asyncio
-    async def test_timeout_uses_fallback(self, test_incident):
-        """Test that AI timeout triggers fallback with original error data."""
-        mock_supabase = MagicMock()
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(data=test_incident)
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[test_incident])
-
-        with patch('services.ai_engine.supabase', mock_supabase), \
-             patch('services.ai_engine.ai_client') as mock_client, \
-             patch('services.ai_engine.redis_client', None), \
-             patch('services.ai_engine.send_slack_alert', new_callable=AsyncMock):
-            
-            # Simulate timeout - create an async function that sleeps longer than timeout
-            async def slow_create(*args, **kwargs):
-                await asyncio.sleep(10)
-            mock_client.chat.completions.create = slow_create
-            
-            from services.ai_engine import analyse_incident
-            result = await analyse_incident('test-incident-123')
-            
-            # Should use fallback and still return analysis
-            assert 'analysis' in result
-            analysis = result['analysis']
-            assert analysis.get('fallback') is True
-            assert 'root_cause' in analysis
-            assert test_incident['exception_class'] in analysis['root_cause']
+from services.ai_engine import (
+    analyse_error,
+    get_cached_analysis,
+    set_cached_analysis,
+    _build_fallback,
+)
 
 
-class TestBuildFallbackAnalysis:
-    """Tests for _build_fallback_analysis function."""
+def test_build_fallback():
+    result = _build_fallback("java.lang.NullPointerException")
+    assert "root_cause" in result
+    assert "why" in result
+    assert "fix_steps" in result
+    assert "code_fix" in result
+    assert result["code_fix"] == ""
 
-    def test_fallback_contains_all_structured_fields(self):
-        """Test that fallback analysis contains all required structured fields."""
-        from services.ai_engine import _build_fallback_analysis
-        
-        result = _build_fallback_analysis(
-            "java.lang.NullPointerException",
-            "Cannot invoke method on null object",
-            "at com.example.Service.process(Service.java:42)"
-        )
-        
-        assert 'root_cause' in result
-        assert 'why' in result
-        assert 'fix_steps' in result
-        assert 'code_fix' in result
-        assert 'risk_score' in result
-        assert 'error_type' in result
-        assert 'fix_suggestion' in result
-        assert result['fallback'] is True
 
-    def test_fallback_includes_original_error(self):
-        """Test that fallback preserves the original error information."""
-        from services.ai_engine import _build_fallback_analysis
-        
-        result = _build_fallback_analysis(
-            "java.lang.NullPointerException",
-            "Cannot invoke method on null object",
-            "at com.example.Service.process(Service.java:42)"
-        )
-        
-        assert "NullPointerException" in result['root_cause']
-        assert "Cannot invoke method on null object" in result['root_cause']
+def test_get_cached_analysis_no_redis():
+    """When redis_client is None, should return None."""
+    with patch("services.ai_engine.redis_client", None):
+        assert get_cached_analysis("somehash") is None
 
-    def test_fallback_handles_empty_message(self):
-        """Test that fallback works with empty message."""
-        from services.ai_engine import _build_fallback_analysis
-        
-        result = _build_fallback_analysis(
-            "java.lang.RuntimeException",
-            "",
-            ""
-        )
-        
-        assert result['root_cause'] == "java.lang.RuntimeException"
-        assert result['confidence'] == "low"
-        assert result['risk_score'] == 50
+
+def test_set_cached_analysis_no_redis():
+    """When redis_client is None, should silently return."""
+    with patch("services.ai_engine.redis_client", None):
+        set_cached_analysis("somehash", {"root_cause": "test"})
+
+
+def test_get_cached_analysis_hit():
+    mock_redis = MagicMock()
+    cached_data = {
+        "root_cause": "NPE",
+        "why": "null ref",
+        "fix_steps": "1. Fix",
+        "code_fix": "",
+    }
+    mock_redis.get.return_value = json.dumps(cached_data)
+
+    with patch("services.ai_engine.redis_client", mock_redis):
+        result = get_cached_analysis("abc123")
+        assert result == cached_data
+
+
+@pytest.mark.asyncio
+async def test_analyse_error_cache_hit():
+    cached = {
+        "root_cause": "cached root cause",
+        "why": "cached why",
+        "fix_steps": "cached steps",
+        "code_fix": "cached code",
+    }
+    with patch("services.ai_engine.get_cached_analysis", return_value=cached):
+        result = await analyse_error("some error", "somehash")
+        assert result == cached
+
+
+@pytest.mark.asyncio
+async def test_analyse_error_ai_call():
+    ai_result = {
+        "root_cause": "NPE in Service.java:42",
+        "why": "Null reference",
+        "fix_steps": "1. Add null check",
+        "code_fix": "if (x != null) x.call();",
+    }
+
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = json.dumps(ai_result)
+
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    with (
+        patch("services.ai_engine.get_cached_analysis", return_value=None),
+        patch("services.ai_engine.ai_client", mock_client),
+        patch("services.ai_engine.set_cached_analysis") as mock_cache_set,
+    ):
+        result = await analyse_error("java.lang.NPE at Service.java:42", "hash123")
+        assert result["root_cause"] == "NPE in Service.java:42"
+        mock_cache_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_analyse_error_ai_unavailable():
+    with (
+        patch("services.ai_engine.get_cached_analysis", return_value=None),
+        patch("services.ai_engine.ai_client", None),
+        patch("services.ai_engine.set_cached_analysis"),
+    ):
+        result = await analyse_error("some error text", "hash456")
+        assert "manual review" in result["root_cause"].lower() or "unavailable" in result["root_cause"].lower()
