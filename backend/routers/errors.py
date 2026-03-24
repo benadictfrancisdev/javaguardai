@@ -103,16 +103,22 @@ async def ingest_error(
     # Run AI analysis
     ai_result = await analyse_error(payload.error, error_hash)
 
-    # Persist analysis
-    new_analysis = Analysis(
-        error_id=target_error.id,
-        root_cause=ai_result.get("root_cause", ""),
-        why=ai_result.get("why", ""),
-        fix_steps=ai_result.get("fix_steps", ""),
-        code_fix=ai_result.get("code_fix", ""),
-        created_at=datetime.now(timezone.utc),
-    )
-    db.add(new_analysis)
+    # Detect fallback (AI was unavailable)
+    is_fallback = "AI analysis unavailable" in ai_result.get("root_cause", "")
+
+    # Only persist analysis if it came from real AI (not fallback)
+    # This allows retry when AI recovers
+    if not is_fallback:
+        new_analysis = Analysis(
+            error_id=target_error.id,
+            root_cause=ai_result.get("root_cause", ""),
+            why=ai_result.get("why", ""),
+            fix_steps=ai_result.get("fix_steps", ""),
+            code_fix=ai_result.get("code_fix", ""),
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(new_analysis)
+
     db.commit()
     db.refresh(target_error)
 
@@ -121,10 +127,10 @@ async def ingest_error(
         hash=target_error.hash,
         duplicate=existing is not None,
         analysis=AnalysisOut(
-            root_cause=new_analysis.root_cause,
-            why=new_analysis.why,
-            fix_steps=new_analysis.fix_steps,
-            code_fix=new_analysis.code_fix,
+            root_cause=ai_result.get("root_cause", ""),
+            why=ai_result.get("why", ""),
+            fix_steps=ai_result.get("fix_steps", ""),
+            code_fix=ai_result.get("code_fix", ""),
         ),
     )
 
