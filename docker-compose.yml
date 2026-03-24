@@ -1,54 +1,32 @@
-# FrameworkGuard AI - Docker Compose Configuration
+# JavaGuard AI Dashboard - Docker Compose Configuration
 version: '3.8'
 
 services:
-  # Backend API Service
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: frameworkguard-backend
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: javaguard-postgres
     ports:
-      - "8000:8000"
-    env_file:
-      - .env
+      - "5432:5432"
     environment:
-      - REDIS_URL=redis://redis:6379
-      - ENV=production
-    depends_on:
-      redis:
-        condition: service_healthy
+      POSTGRES_USER: javaguard
+      POSTGRES_PASSWORD: javaguard
+      POSTGRES_DB: javaguard
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U javaguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
     networks:
-      - frameworkguard-network
-
-  # Frontend Web Service
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - REACT_APP_BACKEND_URL=http://localhost:8000
-    container_name: frameworkguard-frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - frameworkguard-network
+      - javaguard-network
 
   # Redis Cache
   redis:
     image: redis:7-alpine
-    container_name: frameworkguard-redis
+    container_name: javaguard-redis
     ports:
       - "6379:6379"
     volumes:
@@ -61,54 +39,60 @@ services:
       retries: 3
     restart: unless-stopped
     networks:
-      - frameworkguard-network
+      - javaguard-network
 
-  # Celery Worker for Background Tasks
-  celery_worker:
+  # Backend API Service
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: frameworkguard-celery
-    command: celery -A tasks.celery_app worker --loglevel=info --concurrency=4
+    container_name: javaguard-backend
+    ports:
+      - "8000:8000"
     env_file:
       - .env
     environment:
+      - DATABASE_URL=postgresql://javaguard:javaguard@postgres:5432/javaguard
       - REDIS_URL=redis://redis:6379
       - ENV=production
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - javaguard-network
+
+  # Frontend Web Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_BACKEND_URL=http://localhost:8000
+    container_name: javaguard-frontend
+    ports:
+      - "3000:80"
+    depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - frameworkguard-network
-
-  # Celery Beat for Scheduled Tasks (optional)
-  celery_beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: frameworkguard-celery-beat
-    command: celery -A tasks.celery_app beat --loglevel=info
-    env_file:
-      - .env
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - ENV=production
-    depends_on:
-      redis:
-        condition: service_healthy
-      celery_worker:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - frameworkguard-network
+      - javaguard-network
 
 volumes:
+  postgres-data:
+    driver: local
   redis-data:
     driver: local
 
 networks:
-  frameworkguard-network:
+  javaguard-network:
     driver: bridge

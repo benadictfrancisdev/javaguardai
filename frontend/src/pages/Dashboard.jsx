@@ -1,64 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getIncidents, getMetrics, getMetricsSummary } from '../api/client';
-import { RiskBadge } from '../components/RiskBadge';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+import { getDashboard } from '../api/client';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import { 
-  AlertTriangle, 
-  Activity, 
-  Server, 
+import {
+  AlertTriangle,
+  Server,
   RefreshCw,
-  ArrowRight,
   Clock
 } from 'lucide-react';
 
-const StatCard = ({ title, value, subtitle, icon: Icon, alert }) => (
+const StatCard = ({ title, value, icon: Icon, alert }) => (
   <div className={`bg-brand-card border ${alert ? 'border-red-800' : 'border-zinc-800'} rounded-xl p-5`}>
     <div className="flex items-center justify-between mb-3">
       <span className="text-sm text-zinc-500">{title}</span>
       {Icon && <Icon className={`w-4 h-4 ${alert ? 'text-red-400' : 'text-zinc-600'}`} />}
     </div>
     <div className="text-3xl font-bold font-mono text-white">{value}</div>
-    {subtitle && <p className="text-xs text-zinc-500 mt-1">{subtitle}</p>}
   </div>
 );
 
-const HeapGauge = ({ percent }) => {
-  const clampedPercent = Math.min(100, Math.max(0, percent || 0));
-  let color = '#10b981';
-  if (clampedPercent > 80) color = '#ef4444';
-  else if (clampedPercent > 60) color = '#f59e0b';
-
-  return (
-    <div className="relative w-24 h-24">
-      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="40" fill="none" stroke="#27272a" strokeWidth="10" />
-        <circle
-          cx="50" cy="50" r="40" fill="none" stroke={color} strokeWidth="10"
-          strokeDasharray={`${clampedPercent * 2.51} 251`}
-          strokeLinecap="round"
-          className="transition-all duration-500"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-bold font-mono text-white">{Math.round(clampedPercent)}%</span>
-      </div>
-    </div>
-  );
-};
-
-const CustomTooltip = ({ active, payload, label }) => {
+const ChartTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-zinc-900/95 border border-zinc-700 rounded-lg p-3 shadow-xl">
-        <p className="text-xs text-zinc-500 mb-1">{label}</p>
-        {payload.map((entry, i) => (
-          <p key={i} className="text-sm font-mono" style={{ color: entry.color }}>
-            {entry.name}: {entry.value?.toFixed(0)} MB
-          </p>
-        ))}
+        <p className="text-xs text-zinc-400 mb-1">{label}</p>
+        <p className="text-sm font-mono text-brand-green">
+          {payload[0].value} error{payload[0].value !== 1 ? 's' : ''}
+        </p>
       </div>
     );
   }
@@ -67,24 +37,19 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [incidents, setIncidents] = useState([]);
-  const [metrics, setMetrics] = useState([]);
-  const [summary, setSummary] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const fetchData = async () => {
     try {
-      const [incidentsRes, metricsRes, summaryRes] = await Promise.all([
-        getIncidents(null, 5),
-        getMetrics(60),
-        getMetricsSummary(24)
-      ]);
-      setIncidents(incidentsRes.incidents || []);
-      setMetrics(metricsRes.metrics || []);
-      setSummary(summaryRes);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
+      setError(null);
+      const res = await getDashboard();
+      setData(res);
+    } catch (err) {
+      console.error('Failed to fetch dashboard:', err);
+      setError('Could not reach the backend. Is the server running?');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,7 +58,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -101,23 +66,6 @@ export default function Dashboard() {
     setRefreshing(true);
     fetchData();
   };
-
-  const latestMetric = metrics[metrics.length - 1];
-  const heapPercent = latestMetric && latestMetric.heap_max_mb > 0
-    ? (latestMetric.heap_used_mb / latestMetric.heap_max_mb) * 100 : 0;
-  
-  // Count today's incidents
-  const today = new Date().toISOString().split('T')[0];
-  const todaysIncidents = incidents.filter(i => 
-    i.created_at?.startsWith(today)
-  ).length;
-
-  const chartData = metrics.map(m => ({
-    time: new Date(m.timestamp || m.created_at).toLocaleTimeString('en-US', { 
-      hour: '2-digit', minute: '2-digit' 
-    }),
-    heap: m.heap_used_mb
-  }));
 
   if (loading) {
     return (
@@ -127,13 +75,30 @@ export default function Dashboard() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-zinc-400">
+        <AlertTriangle className="w-10 h-10 mb-3 text-red-400" />
+        <p>{error}</p>
+        <button onClick={handleRefresh} className="mt-4 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const chartData = (data?.errors_by_service || []).map(s => ({
+    service: s.service,
+    count: s.count,
+  }));
+
   return (
     <div className="space-y-6" data-testid="dashboard-page">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-zinc-500">Production monitoring overview</p>
+          <p className="text-zinc-500">Java error analysis overview</p>
         </div>
         <button
           onClick={handleRefresh}
@@ -147,108 +112,66 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <StatCard
-          title="Incidents Today"
-          value={todaysIncidents}
-          subtitle={`${incidents.filter(i => i.status !== 'resolved').length} active`}
+          title="Total Errors"
+          value={data?.total_errors ?? 0}
           icon={AlertTriangle}
-          alert={todaysIncidents > 0}
+          alert={data?.total_errors > 0}
         />
-        <div className="bg-brand-card border border-zinc-800 rounded-xl p-5 flex items-center gap-4">
-          <HeapGauge percent={heapPercent} />
-          <div>
-            <span className="text-sm text-zinc-500">Heap Usage</span>
-            <div className="text-lg font-mono text-white">
-              {latestMetric?.heap_used_mb?.toFixed(0) || 0} / {latestMetric?.heap_max_mb?.toFixed(0) || 0} MB
-            </div>
-          </div>
-        </div>
         <StatCard
-          title="Active Threads"
-          value={latestMetric?.thread_count || 0}
-          subtitle={summary ? `Avg: ${summary.avg_thread_count?.toFixed(0) || 0}` : 'No data'}
-          icon={Activity}
+          title="Services Affected"
+          value={data?.errors_by_service?.length ?? 0}
+          icon={Server}
         />
       </div>
 
-      {/* Chart */}
+      {/* Bar Chart — Errors by Service */}
       <div className="bg-brand-card border border-zinc-800 rounded-xl p-5">
-        <h3 className="text-sm font-medium text-zinc-400 mb-4">Heap Memory (Last 60 points)</h3>
+        <h3 className="text-sm font-medium text-zinc-400 mb-4">Errors by Service</h3>
         <div className="h-64">
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="heapGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#00E5A0" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#00E5A0" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                <XAxis dataKey="time" stroke="#52525b" tick={{ fontSize: 10 }} />
-                <YAxis stroke="#52525b" tick={{ fontSize: 10 }} tickFormatter={v => `${v}MB`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="heap"
-                  name="Heap Used"
-                  stroke="#00E5A0"
-                  fill="url(#heapGrad)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
+                <XAxis dataKey="service" stroke="#52525b" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#52525b" tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                <Bar dataKey="count" fill="#00E5A0" radius={[4, 4, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-full flex items-center justify-center text-zinc-500">
-              No metrics data available
+              No service data yet
             </div>
           )}
         </div>
       </div>
 
-      {/* Recent Incidents */}
+      {/* Recent Errors */}
       <div className="bg-brand-card border border-zinc-800 rounded-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-zinc-400">Recent Incidents</h3>
-          <button
-            onClick={() => navigate('/incidents')}
-            className="flex items-center gap-1 text-sm text-brand-green hover:text-brand-green/80 transition-colors"
-            data-testid="view-all-incidents"
-          >
-            View All <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-        {incidents.length > 0 ? (
+        <h3 className="text-sm font-medium text-zinc-400 mb-4">Recent Errors</h3>
+        {data?.recent_errors?.length > 0 ? (
           <div className="space-y-2">
-            {incidents.slice(0, 5).map((incident) => (
+            {data.recent_errors.map((err) => (
               <div
-                key={incident.id}
-                onClick={() => navigate(`/incidents?selected=${incident.id}`)}
+                key={err.id}
+                onClick={() => navigate(`/errors/${err.id}`)}
                 className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50 hover:bg-zinc-800/50 cursor-pointer transition-colors"
-                data-testid={`incident-row-${incident.id}`}
+                data-testid={`error-row-${err.id}`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-2 h-2 rounded-full ${
-                    incident.status === 'resolved' ? 'bg-green-400' : 
-                    incident.status === 'analysed' ? 'bg-blue-400' : 'bg-yellow-400 animate-pulse'
-                  }`} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-mono text-white truncate">
-                      {incident.exception_class}
-                    </p>
-                    <p className="text-xs text-zinc-500 truncate">
-                      {incident.message?.slice(0, 50)}...
-                    </p>
-                  </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-mono text-white truncate">
+                    {err.error_text?.slice(0, 80)}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Service: <span className="text-zinc-400">{err.service_name}</span>
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <RiskBadge score={incident.risk_score} />
-                  <span className="text-xs text-zinc-500 flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {new Date(incident.created_at).toLocaleTimeString()}
-                  </span>
-                </div>
+                <span className="text-xs text-zinc-500 flex items-center gap-1 ml-4 shrink-0">
+                  <Clock className="w-3 h-3" />
+                  {new Date(err.created_at).toLocaleString()}
+                </span>
               </div>
             ))}
           </div>
@@ -256,7 +179,7 @@ export default function Dashboard() {
           <div className="h-32 flex items-center justify-center text-zinc-500">
             <div className="text-center">
               <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-zinc-600" />
-              <p>No incidents reported</p>
+              <p>No errors ingested yet</p>
             </div>
           </div>
         )}

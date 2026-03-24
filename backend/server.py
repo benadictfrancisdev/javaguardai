@@ -1,4 +1,4 @@
-# Re-export from main.py for supervisor compatibility
+# Re-export from main.py for deployment compatibility
 from main import app
 
 __all__ = ['app']

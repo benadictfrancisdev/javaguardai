@@ -15,8 +15,6 @@ async def config_status():
     def is_set(val: str) -> bool:
         return bool(val and val.strip())
 
-    db_ok = is_set(settings.SUPABASE_URL) and is_set(settings.SUPABASE_SERVICE_KEY)
-
     # Test actual DB connection
     db_error = None
     try:
