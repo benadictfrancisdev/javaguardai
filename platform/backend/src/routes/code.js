@@ -89,11 +89,14 @@ router.post('/submit', authenticate, validateCodeSubmission, sanitizeJavaCode, a
       console.error('AI analysis error:', aiError.message);
     }
 
-    // Update project snippet count if applicable
+    // Update project snippet count if applicable (with ownership check)
     if (project_id) {
-      await Project.increment('snippet_count', { where: { id: project_id } });
-      if (executionResult.errors.length > 0) {
-        await Project.increment('error_count', { where: { id: project_id } });
+      const project = await Project.findOne({ where: { id: project_id, user_id: req.userId } });
+      if (project) {
+        await Project.increment('snippet_count', { where: { id: project_id } });
+        if (executionResult.errors.length > 0) {
+          await Project.increment('error_count', { where: { id: project_id } });
+        }
       }
     }
 
@@ -373,6 +376,27 @@ router.post('/:id/apply-fix', authenticate, async (req, res) => {
     const { fixedCode } = req.body;
     if (!fixedCode) {
       return res.status(400).json({ error: 'Fixed code is required.' });
+    }
+
+    // Sanitize the fixed code before execution
+    const dangerousPatterns = [
+      /Runtime\s*\.\s*getRuntime\s*\(\s*\)\s*\.\s*exec/i,
+      /ProcessBuilder/i,
+      /System\s*\.\s*exit/i,
+      /java\.io\.File(?!NotFoundException)/i,
+      /java\.net\.(Socket|ServerSocket|URL|HttpURLConnection)/i,
+      /java\.lang\.reflect/i,
+      /ClassLoader/i,
+      /SecurityManager/i,
+      /System\s*\.\s*setProperty/i,
+      /Thread\s*\.\s*sleep\s*\(\s*\d{5,}/i,
+    ];
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(fixedCode)) {
+        return res.status(400).json({
+          error: 'Fixed code contains potentially dangerous patterns and cannot be executed.',
+        });
+      }
     }
 
     const snippet = await CodeSnippet.findOne({

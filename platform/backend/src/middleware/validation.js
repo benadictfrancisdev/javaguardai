@@ -64,7 +64,10 @@ const sanitizeJavaCode = (req, res, next) => {
   }
 
   if (warnings.length > 0) {
-    req.codeWarnings = warnings;
+    return res.status(400).json({
+      error: 'Code contains potentially dangerous patterns and cannot be executed.',
+      warnings,
+    });
   }
 
   next();
