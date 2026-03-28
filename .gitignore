@@ -87,3 +87,6 @@ android-sdk/ frontend/node_modules/.cache/default-development/3.pack
 *.env
 *.env.*
 frontend/node_modules/.cache/default-development/0.pack
+backend/.env
+backend/*.db
+frontend/.env
