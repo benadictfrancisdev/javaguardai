@@ -99,7 +99,7 @@ class JavaExecutor {
       proc.stderr.on('data', (data) => { output += data.toString(); });
 
       proc.on('close', (exitCode) => {
-        resolve({ output: output.trim(), exitCode: exitCode || 0 });
+        resolve({ output: output.trim(), exitCode: exitCode ?? 1 });
       });
 
       proc.on('error', (err) => {
@@ -140,7 +140,7 @@ class JavaExecutor {
         const executionTimeMs = Date.now() - startTime;
         resolve({
           output: output.trim(),
-          exitCode: exitCode || 0,
+          exitCode: exitCode ?? 1,
           executionTimeMs,
           timedOut,
         });

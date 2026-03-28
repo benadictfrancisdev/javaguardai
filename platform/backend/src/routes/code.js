@@ -134,13 +134,19 @@ router.post('/submit', authenticate, validateCodeSubmission, sanitizeJavaCode, a
 });
 
 // POST /api/code/upload - Upload .java file
-router.post('/upload', authenticate, upload.single('file'), async (req, res) => {
+router.post('/upload', authenticate, upload.single('file'), (req, res, next) => {
+  // Extract source code from uploaded file so sanitizeJavaCode middleware can check it
+  if (req.file) {
+    req.body.source_code = req.file.buffer.toString('utf8');
+  }
+  next();
+}, sanitizeJavaCode, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded.' });
     }
 
-    const source_code = req.file.buffer.toString('utf8');
+    const source_code = req.body.source_code;
     const title = req.file.originalname.replace('.java', '');
 
     // Forward to submit logic
